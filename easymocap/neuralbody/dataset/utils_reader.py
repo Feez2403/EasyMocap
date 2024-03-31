@@ -75,7 +75,7 @@ def get_schp_palette(num_cls=256):
 palette = get_schp_palette(semantic_dim)
 
 def parse_semantic(semantic):
-    msk_cihp = (semantic * 255).astype(np.int)  # H, W, 3 
+    msk_cihp = (semantic * 255).astype(np.int_)  # H, W, 3 
     sem_msk = np.zeros(msk_cihp.shape[:2], dtype=np.int64)
     for i, rgb in enumerate(palette):
         if i == 0:continue

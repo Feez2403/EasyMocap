@@ -8,7 +8,7 @@ FULL_LOG = (lambda x: print(x, file=open(LOG_FILE, 'a'))) if LOG_LEVEL > 1 else 
 LOG = (lambda x: print(x, file=open(LOG_FILE, 'a'))) if LOG_LEVEL > 0 else (lambda x: None)
 
 def views_from_dimGroups(dimGroups):
-    views = np.zeros(dimGroups[-1], dtype=np.int)
+    views = np.zeros(dimGroups[-1], dtype=np.int_)
     for nv in range(len(dimGroups) - 1):
         views[dimGroups[nv]:dimGroups[nv+1]] = nv
     return views
@@ -134,11 +134,11 @@ class Select_Views:
             sum1 += affinity[:, start:end].max(axis=-1)
         n2d = affinity.shape[0]
         nViews = len(dimGroups) - 1
-        idx_zero = np.zeros(nViews, dtype=np.int) - 1
+        idx_zero = np.zeros(nViews, dtype=np.int_) - 1
         views = views_from_dimGroups(dimGroups)
         # the assigned results of each person
-        p2dAssigned = np.zeros(n2d, dtype=np.int) - 1
-        visited = np.zeros(n2d, dtype=np.int)
+        p2dAssigned = np.zeros(n2d, dtype=np.int_) - 1
+        visited = np.zeros(n2d, dtype=np.int_)
         sortidx = np.argsort(-sum1)
         pid = 0
         k3dresults = []

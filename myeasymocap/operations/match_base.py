@@ -245,7 +245,7 @@ class MatchBase:
     @staticmethod
     def _indices_from_affinity(dimGroups, affinit_row, assigned, visited, nViews):
         proposals = []
-        indices = np.zeros((nViews), dtype=np.int) - 1
+        indices = np.zeros((nViews), dtype=np.int_) - 1
         for nv in range(nViews):
             start, end = dimGroups[nv], dimGroups[nv+1]
             block = affinit_row[start:end]
@@ -281,8 +281,8 @@ class MatchBase:
         n2d = affinity.shape[0]
         # the assigned results of each person
         if assigned is None:
-            assigned = np.zeros(n2d, dtype=np.bool)
-        visited = np.zeros(n2d, dtype=np.bool)
+            assigned = np.zeros(n2d, dtype=np.bool_)
+        visited = np.zeros(n2d, dtype=np.bool_)
         sortidx = np.argsort(-affinity_sum)
         k3dresults = []
         for idx in sortidx:
@@ -336,8 +336,8 @@ class MatchBase:
         nViews = len(keypoints)
         n2d = affinity.shape[0]
         # the assigned results of each person
-        assigned = np.zeros(n2d, dtype=np.bool)
-        visited = np.zeros(n2d, dtype=np.bool)
+        assigned = np.zeros(n2d, dtype=np.bool_)
+        visited = np.zeros(n2d, dtype=np.bool_)
         affinity_sum = affinity.sum(axis=0)
         sortidx = np.argsort(-affinity_sum)
         k3dresults = []

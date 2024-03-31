@@ -1,0 +1,540 @@
+exp: soccer1_6
+gpus: [0]
+output: none
+resume: True
+log_interval: 50
+record_interval: 1
+test_interval: 10
+local_rank: 0
+distributed: True
+fix_random: True
+split: train
+optimizer:
+    lr: 0.000500
+    batch_size: 1
+    optim: adam
+    weight_decay: 0
+scheduler:
+    type: exponential
+    gamma: 0.100000
+    decay_epochs: 1000
+recorder_module: easymocap.train.recorder.Recorder
+recorder_args:
+    resume: True
+    local_rank: 0
+    log_dir: neuralbody/soccer1_6/record
+train:
+    ep_iter: 1000
+    epoch: 400
+    save_ep: 1
+    save_latest_ep: 5
+    eval_ep: 100
+    skip_eval: True
+    batch_size: 1
+    shuffle: True
+    batch_sampler: default
+    num_workers: 4
+    collator: default
+test:
+    batch_size: 1
+    sampler: default
+    batch_sampler: default
+    epoch: -1
+    collator: default
+    num_workers: 4
+data_train_module: easymocap.neuralbody.dataset.mvbase.BaseDataset
+data_train_args:
+    root: data/soccer1_6
+    subs: []
+    ranges: [0, 200, 1]
+    image_args:
+        root: images
+        ext: .jpg
+        scale: 1.000000
+        undis: True
+        mask_bkgd: False
+        white_bkgd: False
+        mask: mask-schp
+        unsync: output-smpl-3d/time_offset.json
+        ignore_back: True
+    object_keys: []
+    ignore_keys: []
+    object_args:
+        allhuman:
+            model: neuralbody-smplmask
+            rate: 1
+            args:
+                pid: -1
+                rate_body: 0.950000
+                use_param_foreachview: True
+                reader:
+                    smpl:
+                        root: output-smpl-3d/smpl
+                    vertices:
+                        root: output-smpl-3d/vertices
+                        padding: 0.050000
+                    mask:
+                        root: output-smpl-3d/instance
+                        undis: False
+                    label:
+                        root: output-keypoints3d/label
+                        undis: False
+        allball:
+            model: trajbbox
+            rate: 5.000000
+            args:
+                root: output-object3d/keypoints3d
+                scale: [0.15, 0.15, 0.15]
+        background:
+            model: cylinder
+            rate: 0.050000
+            args:
+                center: [0.0, 0.0, 0.0]
+                radius: [5.0, 20.0]
+                zranges: [0.01, 3.0]
+        ground:
+            model: plane
+            rate: 0.050000
+            args:
+                center: [0.0, 0.0, 0.0]
+                radius: 5.000000
+                zranges: [-0.01, 0.01]
+    sample_args:
+        nrays: 6144
+    split: train
+data_val_module: easymocap.neuralbody.dataset.mvbase.BaseDataset
+data_val_args:
+    root: data/soccer1_6
+    subs: []
+    ranges: [0, 200, 1]
+    image_args:
+        root: images
+        ext: .jpg
+        scale: 0.500000
+        undis: True
+        mask_bkgd: False
+        white_bkgd: False
+        mask: mask-schp
+        unsync: output-smpl-3d/time_offset.json
+        ignore_back: True
+    object_keys: []
+    ignore_keys: []
+    object_args:
+        allhuman:
+            pids: [0, 1, 2, 3, 4, 5]
+            model: neuralbody-smplmask
+            rate: 1
+            args:
+                pid: -1
+                rate_body: 0.950000
+                use_param_foreachview: True
+                reader:
+                    smpl:
+                        root: output-smpl-3d/smpl
+                    vertices:
+                        root: output-smpl-3d/vertices
+                        padding: 0.050000
+                    mask:
+                        root: output-smpl-3d/instance
+                        undis: False
+                    label:
+                        root: output-keypoints3d/label
+                        undis: False
+        allball:
+            model: trajbbox
+            rate: 5.000000
+            pids: [0]
+            args:
+                root: output-object3d/keypoints3d
+                scale: [0.15, 0.15, 0.15]
+        background:
+            model: cylinder
+            rate: 0.050000
+            args:
+                center: [0.0, 0.0, 0.0]
+                radius: [5.0, 20.0]
+                zranges: [0.01, 3.0]
+        ground:
+            model: plane
+            rate: 0.050000
+            args:
+                center: [0.0, 0.0, 0.0]
+                radius: 5.000000
+                zranges: [-0.01, 0.01]
+    sample_args:
+        nrays: 6144
+    split: test
+data_demo_module: easymocap.neuralbody.dataset.mvbase.BaseDatasetDemo
+data_demo_args:
+    root: data/soccer1_6
+    subs: []
+    ranges: [0, 200, 1]
+    image_args:
+        root: images
+        ext: .jpg
+        scale: 1.000000
+        undis: True
+        mask_bkgd: False
+        white_bkgd: False
+        mask: mask-schp
+        unsync: output-smpl-3d/time_offset.json
+        ignore_back: True
+    object_keys: []
+    ignore_keys: ['background']
+    object_args:
+        allhuman:
+            pids: [0, 1, 2, 3, 4, 5]
+            model: neuralbody-smplmask
+            rate: 1
+            args:
+                pid: -1
+                rate_body: 0.950000
+                use_param_foreachview: True
+                reader:
+                    smpl:
+                        root: output-smpl-3d/smpl
+                    vertices:
+                        root: output-smpl-3d/vertices
+                        padding: 0.050000
+                    mask:
+                        root: output-smpl-3d/instance
+                        undis: False
+                    label:
+                        root: output-keypoints3d/label
+                        undis: False
+        allball:
+            model: trajbbox
+            rate: 5.000000
+            pids: [0]
+            args:
+                root: output-object3d/keypoints3d
+                scale: [0.15, 0.15, 0.15]
+        background:
+            model: cylinder
+            rate: 0.050000
+            args:
+                center: [0.0, 0.0, 0.0]
+                radius: [5.0, 20.0]
+                zranges: [0.01, 3.0]
+        ground:
+            model: plane
+            rate: 0.050000
+            args:
+                center: [0.0, 0.0, 0.0]
+                radius: 5.000000
+                zranges: [-0.01, 0.01]
+                xybounds: [-5, 5]
+    sample_args:
+        nrays: 6144
+    split: demo
+    camera_args:
+        method: mean
+        H: 1080
+        W: 1920
+        allstep: 800
+        loop: True
+    demo_args:
+        mode: scripts
+        stages:
+            start:
+                frame: [0, 40, 1]
+                view: [0, 80, 2]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+            zoomin:
+                frame: [40, 41, 1]
+                view: [80, 81, 1]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+                steps: 60
+                effect: zoom
+                effect_args:
+                    scale: [1.0, 2.0]
+                    cx: [1.0, 1.0]
+                    cy: [1.0, 1.0]
+            rotate:
+                frame: [40, 41, 1]
+                view: [80, 200, 1]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+                effect: none
+                effect_args:
+                    use_previous_K: True
+            zoomout:
+                frame: [40, 41, 1]
+                view: [200, 201, 1]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+                steps: 60
+                effect: zoom
+                effect_args:
+                    scale: [2.0, 1.0]
+                    cx: [1.0, 1.0]
+                    cy: [1.0, 1.0]
+            frozen1:
+                frame: [40, 200, 2]
+                view: [200, 201, 1]
+                object_keys: ["ground_@{'frame': 40}", 'ball_0', "human_3_@{'scale_occ': 0.2}", "human_0_@{'frame': 40}", "human_1_@{'frame': 40}", "human_2_@{'frame': 40}", "human_3_@{'frame': 40}", "human_4_@{'frame': 40}", "human_5_@{'frame': 40}"]
+            frozen2:
+                frame: [199, 39, -2]
+                view: [200, 201, 1]
+                object_keys: ["ground_@{'frame': 40}", 'ball_0', "human_3_@{'scale_occ': 0.2}", "human_0_@{'frame': 40}", "human_1_@{'frame': 40}", "human_2_@{'frame': 40}", "human_3_@{'frame': 40}", "human_4_@{'frame': 40}", "human_5_@{'frame': 40}"]
+            normal:
+                frame: [40, 65, 1]
+                view: [200, 250, 2]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+            bullet:
+                frame: [65, 66, 1]
+                view: [250, 490, 1]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+            zoomin2:
+                frame: [65, 66, 1]
+                view: [490, 491, 1]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+                steps: 60
+                effect: zoom
+                effect_args:
+                    scale: [1.0, 1.5]
+                    cx: [1.0, 0.7]
+                    cy: [1.0, 1.0]
+            disappear3:
+                frame: [65, 200, 1]
+                view: [490, 491, 1]
+                object_keys: ['ground', 'human_0', 'human_1', 'human_2', 'human_3', 'human_4', 'human_5', 'ball_0']
+                effect: disappear
+                effect_args:
+                    key: ['human_1', 'human_2', 'human_5']
+                    use_previous_K: True
+data_canonical_module: easymocap.neuralbody.dataset.mvbase.BaseCanonical
+data_canonical_args:
+    root: none
+    nFrames: 300
+    camera_args:
+        H: 1024
+        W: 1024
+        focal: 1200
+        center: [0.0, -0.3, 0.0]
+        radius: 3.000000
+        up: y
+        angle_x: 0
+        ranges: [90, 450, 300]
+    object_keys: []
+    ignore_keys: []
+    object_args: {}
+    sample_args:
+        nrays: 4096
+data_novelposes_module: easymocap.neuralbody.dataset.mvbase.BaseNovelPose
+data_novelposes_args:
+    root: none
+    camera_args:
+        H: 1024
+        W: 1024
+        focal: 1200
+        center: [0.0, 0, 2.2]
+        radius: 3.000000
+        up: z
+        angle_x: 30
+        ranges: [90, 450, 300]
+    object_keys: []
+    object_args:
+        allhuman:
+            pids: [0]
+            model: neuralbody
+            rate: 1
+            args:
+                pid: -1
+                scale: [0.8, 0.8, 1.2]
+                reader:
+                    smpl:
+                        root: smpl
+                    vertices:
+                        root: vertices
+    sample_args:
+        nrays: 2048
+network_module: easymocap.neuralbody.model.compose.ComposedModel
+network_args:
+    models:
+        background:
+            network_module: easymocap.neuralbody.model.nerfplus.NeRFT
+            network_args:
+                embed:
+                    mode: mlp
+                    shape: [300, 512]
+                    res: 32
+                    D: 0
+                    W: 128
+                nerf:
+                    D: 3
+                    W: 256
+                    dim_pts: 3
+                    dim_dir: 3
+                    xyz_res: 10
+                    view_res: 4
+                    skips: [4]
+                    use_viewdirs: True
+                    use_occupancy: True
+                    linear_func: Linear
+                    act_fn: expsoftplus
+                    init_bias: 0.100000
+                    sample_args:
+                        method: uniform
+                        N_samples: 32
+                    D_rgb: 3
+        ground:
+            network_module: easymocap.neuralbody.model.nerfplus.NeRFT
+            network_args:
+                embed:
+                    mode: mlp
+                    shape: [300, 512]
+                    res: 32
+                    D: 0
+                    W: 128
+                nerf:
+                    D: 3
+                    W: 256
+                    dim_pts: 3
+                    dim_dir: 3
+                    xyz_res: 10
+                    view_res: 4
+                    skips: [4]
+                    use_viewdirs: True
+                    use_occupancy: True
+                    linear_func: Linear
+                    act_fn: expsoftplus
+                    init_bias: 2.000000
+                    sample_args:
+                        method: uniform
+                        N_samples: 16
+                    D_rgb: 3
+                    pts_to_rgb: False
+        allhuman:
+            network_module: easymocap.neuralbody.model.neuralbody.Network
+            network_args:
+                embed_vert: [6890, 32]
+                embed_time:
+                    mode: mlp
+                    shape: [300, 64]
+                    res: 10
+                    D: 0
+                    W: 128
+                voxel_size: [0.005, 0.005, 0.005]
+                voxel_pad: [0.1, 0.1, 0.1]
+                sparse:
+                    dims: [32, 32, 64, 128]
+                nerf:
+                    sample_args:
+                        method: uniform
+                        N_samples: 64
+                    D: 3
+                    skips: []
+                    W: 256
+                    dim_pts: 3
+                    dim_dir: 3
+                    pts_to_density: True
+                    pts_to_rgb: False
+                    xyz_res: 10
+                    view_res: 4
+                    use_viewdirs: True
+                    use_occupancy: True
+                    linear_func: Linear
+                    act_fn: expsoftplus
+                    D_rgb: 3
+            pids: [0, 1, 2, 3, 4, 5]
+        allball:
+            network_module: easymocap.neuralbody.model.nerfplus.DynamicColorNerf
+            network_args:
+                pid: -1
+                traj:
+                    ranges: [0, 200, 1]
+                    nViews: 8
+                    path: data/soccer1_6/output-object3d/keypoints3d
+                embed:
+                    mode: mlp
+                    shape: [300, 512]
+                    res: 32
+                    D: 0
+                    W: 128
+                nerf:
+                    D: 3
+                    D_rgb: 3
+                    W: 256
+                    dim_pts: 3
+                    dim_dir: 3
+                    xyz_res: 10
+                    view_res: 4
+                    skips: [4]
+                    use_viewdirs: True
+                    use_occupancy: True
+                    linear_func: Linear
+                    act_fn: expsoftplus
+                    sample_args:
+                        method: uniform
+                        N_samples: 16
+                opt_traj_step: 10000
+                share_view: True
+            pids: [0]
+trainer_module: easymocap.neuralbody.renderer.render_wrapper.RenderWrapper
+trainer_args:
+    renderer_module: easymocap.neuralbody.renderer.render_base.BaseRenderer
+    renderer_args:
+        chunk: 4096
+        white_bkgd: False
+        use_occupancy: True
+        N_samples: 64
+        split: train
+        return_extra: True
+    loss:
+        rgb:
+            weight: 1.000000
+            module: easymocap.neuralbody.renderer.render_loss.LossRGB
+            args:
+                norm: l2
+        reg:
+            weight: 0.100000
+            module: easymocap.neuralbody.renderer.render_loss.AnyReg
+            args:
+                key: ball_0_reg_t
+                norm: norm
+        sparse:
+            weight: 0.001000
+            module: easymocap.neuralbody.renderer.render_loss.LossSparseEntropy
+            args:
+                norm: l2
+                start: 10000
+                end: 999999
+        entropy:
+            weight: 0.010000
+            module: easymocap.neuralbody.renderer.render_loss.LossEntropyInstance
+            args:
+                norm: l2
+                start: 0
+                end: 5000
+renderer_module: easymocap.neuralbody.renderer.render_base.BaseRenderer
+renderer_args:
+    chunk: 8192
+    white_bkgd: True
+    use_occupancy: True
+    N_samples: 64
+    split: test
+canonical:
+    renderer_module: easymocap.neuralbody.renderer.render_base.BaseRenderer
+    renderer_args:
+        use_canonical: True
+        chunk: 8192
+        white_bkgd: False
+        use_occupancy: True
+        N_samples: 128
+        split: test
+mesh:
+    renderer_module: easymocap.neuralbody.renderer.render_base.MeshRenderer
+    renderer_args:
+        chunk: 8192
+        white_bkgd: False
+        use_occupancy: True
+        N_samples: 32
+        split: test
+visualizer_module: easymocap.neuralbody.visualizer.vis_rgb.Visualizer
+visualizer_args:
+    out: none
+    concat: none
+    format: index
+    keys: ['rgb', 'rgb_map', 'instance_map', 'depth_map', 'acc_map']
+    depth_range: [0.1, 8.0]
+    back_col: [1.0, 1.0, 1.0]
+trained_model_dir: neuralbody/soccer1_6/model

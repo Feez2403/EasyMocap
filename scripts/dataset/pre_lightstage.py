@@ -469,12 +469,12 @@ def soft_sync(path, out, multiple_thread = False):
     cams, imagelists = getFileDict(path)
     if args.static:
         # 静止场景，直接保存第一帧图像
-        matched = np.zeros((len(cams), 1), dtype=np.int)
+        matched = np.zeros((len(cams), 1), dtype=np.int_)
     elif args.nosync:
         assert len(cams) == 1
         times_all = parse_time(imagelists, cams)
         matched = np.arange(0, len(imagelists[cams[0]])).reshape(1, -1)
-        # matched = np.arange((1, len(imagelists[cams[0]])), dtype=np.int)
+        # matched = np.arange((1, len(imagelists[cams[0]])), dtype=np.int_)
     else:
         # 获取图像时间
         times_all = parse_time(imagelists, cams)
@@ -534,7 +534,7 @@ if __name__ == "__main__":
     filter_list = args.filter
 
     if args.check:
-        timestamp = np.loadtxt(join(args.out, 'sync_time.txt'), dtype=np.int)
+        timestamp = np.loadtxt(join(args.out, 'sync_time.txt'), dtype=np.int_)
         timestamp = timestamp[:, :10]
         t = np.arange(timestamp.shape[1])
         import matplotlib as mpl

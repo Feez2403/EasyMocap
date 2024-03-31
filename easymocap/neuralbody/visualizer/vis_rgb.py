@@ -188,7 +188,7 @@ class Visualizer:
             # (N, 3)
             colors = np.array(colors)
             if False:
-                res = np.zeros((H, W), dtype=np.int)
+                res = np.zeros((H, W), dtype=np.int_)
                 res[coord[:, 0], coord[:, 1]] = output[key].argmax(axis=-1)
                 pred = (res * 40).astype(np.uint8)
                 pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)

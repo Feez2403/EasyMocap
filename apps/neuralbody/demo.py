@@ -48,7 +48,7 @@ def neuralbody_train(data, config, mode, exp=None):
     exp = mode if exp is None else exp
     outdir = join(args.out, exp)
     cfg_name = join(outdir, 'config.yml')
-    cmd =  f'python3 apps/neuralbody/train_pl.py --cfg {cfg_name} gpus {args.gpus} distributed True exp {exp}'
+    cmd =  f'python apps/neuralbody/train_pl.py --cfg {cfg_name} gpus {args.gpus} distributed True exp {exp}'
     if args.recfg or (not args.test and not args.demo and not args.eval):
         reload_config(config, data, outdir)
     if args.eval or args.demo or args.test or args.trainvis or args.canonical or args.poses is not None:

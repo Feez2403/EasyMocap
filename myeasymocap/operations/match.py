@@ -978,7 +978,7 @@ class MatchBodyHand:
         x[1,:] = K[1,0]*x[0,:] + K[1,1]*x[1,:] + K[1,2]
         return x
     def match3d_step(self, results, keypoints3d,wristid):
-        match_results=(np.zeros((len(keypoints3d)),dtype=np.int)-1).tolist()
+        match_results=(np.zeros((len(keypoints3d)),dtype=np.int_)-1).tolist()
         vis = (np.zeros((len(keypoints3d)))-1).tolist()
         dis = []
         for i in range(len(keypoints3d)):

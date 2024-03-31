@@ -11,22 +11,22 @@ args:
         name: person
         min_length: 150 # this two threshold control the wanted bboxes
         max_length: 1000
-    # keypoints2d:
-    #   module: myeasymocap.backbone.hrnet.myhrnet.MyHRNet
-    #   key_from_data: [images, imgnames]
-    #   key_from_previous: [bbox]
-    #   key_keep: []
-    #   args:
-    #     ckpt: data/models/pose_hrnet_w48_384x288.pth
-    #     single_person: False # This flag controls the function to detect all keypoints
     keypoints2d:
-      module: myeasymocap.backbone.vitpose.vit_moe.MyViT
+      module: myeasymocap.backbone.hrnet.myhrnet.MyHRNet
       key_from_data: [images, imgnames]
       key_from_previous: [bbox]
       key_keep: []
       args:
-        ckpt: data/models/vitpose+_base.pth
+        ckpt: data/models/pose_hrnet_w48_384x288.pth
         single_person: False # This flag controls the function to detect all keypoints
+    #keypoints2d:
+    #  module: myeasymocap.backbone.vitpose.vit_moe.MyViT
+    #  key_from_data: [images, imgnames]
+    #  key_from_previous: [bbox]
+    #  key_keep: []
+    #  args:
+    #    ckpt: data/models/vitpose+_base.pth
+    #    single_person: False # This flag controls the function to detect all keypoints
     vis_2d:
       module: myeasymocap.io.vis.Vis2D
       skip: False

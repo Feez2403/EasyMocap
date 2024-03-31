@@ -532,6 +532,7 @@ class MyViT(BaseTopDownModelCache, BaseKeypoints):
         super().__init__(name='myvit', bbox_scale=1.25,
                          res_input=[192, 256], **kwargs)
         self.single_person = single_person
+        self.num_joints = 23
         model = ComposeVit()
         if not os.path.exists(ckpt):
             print('')
