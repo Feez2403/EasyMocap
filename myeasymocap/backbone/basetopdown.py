@@ -152,15 +152,15 @@ class BaseTopDownModel(nn.Module):
         if len(bbox.shape) == 1:
             bbox = bbox[None]
             squeeze = True
-        # TODO: 兼容多张图片的
+        # TODO: Compatible with multiple images
         bbox = xyxy2ccwh(bbox)
         # convert the bbox to the aspect of input bbox
         aspect_ratio = self.crop_size[1] / self.crop_size[0]
         w, h = bbox[:, 2], bbox[:, 3]
-        # 如果height大于w*ratio，那么增大w
+        # If height is greater than w*ratio, then increase w
         flag = h > aspect_ratio * w
         bbox[flag, 2] = h[flag] / aspect_ratio
-        # 否则增大h
+        # Otherwise, increasing h
         bbox[~flag, 3] = w[~flag] * aspect_ratio
         inputs = []
         inv_trans_ = []
@@ -192,6 +192,7 @@ class BaseTopDownModel(nn.Module):
         inputs = np.stack(inputs)
         inv_trans_ = np.stack(inv_trans_)
         inputs = torch.FloatTensor(inputs).to(self.device)
+        #print(inputs.shape)
         with torch.no_grad():
             output = self.model(inputs)
         if squeeze:

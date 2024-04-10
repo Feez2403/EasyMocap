@@ -74,12 +74,26 @@ class WriteSMPL:
     def __call__(self, params=None, results=None, meta=None, model=None):
         results_all = []
         if results is None and params is not None:
+            print('results is None and params is not None')
             # copy params to results
             results = {0: {'params': params, 'keypoints3d': None, 'frames': list(range(len(params['Rh'])))}}
+        print('Writing SMPL to', join(self.output, self.name))
+        print('meta[\'index\']', meta['index'])
+        print('results.keys()', results.keys())
+        print('results[0].keys()', results[0].keys())
+        
         for index in tqdm(meta['index'], desc=self.name):
             results_frame = []
+            print('index', index)
             for pid, result in results.items():
-                if index >= result['frames'][0] and index <= result['frames'][-1]:
+                print('pid', pid)
+                print('result.keys()', result.keys())
+                print('result[\'frames\']', result['frames'], type(result['frames']))
+                
+                #if index >= result['frames'][0] and index <= result['frames'][-1]:
+                if index in result['frames']:
+                        
+                        
                     frame_rel = result['frames'].index(index)
                     results_frame.append({
                         'id': pid,

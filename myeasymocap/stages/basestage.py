@@ -59,6 +59,8 @@ class MultiStage:
         ret = {}
         if 'meta' in data:
             ret['meta'] = data['meta']
+            
+        print(f"FRAMES: {ret['meta']}")
         for key in self.keys_keep:
             ret[key] = data[key]
         timer = {}
@@ -74,6 +76,7 @@ class MultiStage:
                 inputs[k] = ret[k]
             start = time.time()
             try:
+                print(f"model inputs : {inputs.keys()}")
                 output = model(**inputs)
             except:
                 print('[{}] Error in {}'.format('Stages', key))

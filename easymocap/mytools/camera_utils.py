@@ -11,8 +11,8 @@ class FileStorage(object):
         if isWrite:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             self.fs = open(filename, 'w')
-            self.fs.write('%YAML:1.0\r\n')
-            self.fs.write('---\r\n')
+            self.fs.write('%YAML:1.0\n')
+            self.fs.write('---\n')
         else:
             assert os.path.exists(filename), filename
             self.fs = cv2.FileStorage(filename, cv2.FILE_STORAGE_READ)
@@ -25,7 +25,7 @@ class FileStorage(object):
             cv2.FileStorage.release(self.fs)
 
     def _write(self, out):
-        self.fs.write(out+'\r\n')
+        self.fs.write(out+'\n')
 
     def write(self, key, value, dt='mat'):
         if dt == 'mat':

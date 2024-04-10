@@ -97,7 +97,7 @@ class BaseYOLOv5:
         idx = np.argsort(select[:, -1])[::-1]
         return select[idx[0:1]]
 
-    def __call__(self, images, imgnames): # 这里好像默认是多视角了，需要继承一下单视角的
+    def __call__(self, images, imgnames): # It seems that the default here is multi-view, you need to inherit the single view.
         squeeze = False
         if not isinstance(images, list):
             images = [images]
@@ -171,7 +171,7 @@ class MultiPerson(BaseYOLOv5):
     def select_bbox(self, select, results, imgname):
         if select.shape[0] == 0:
             return select
-        # 判断一下面积
+        # Judge the area.
         area = np.sqrt((select[:, 2] - select[:, 0])*(select[:, 3]-select[:, 1]))
         valid = (area > self.min_length) & (area < self.max_length)
         height, width, _ = results['image_shape']

@@ -24,7 +24,7 @@ def batch_triangulate(keypoints_, Pall, min_view=2):
     valid_joint = np.where(v >= min_view)[0]
     keypoints = keypoints_[:, valid_joint]
     conf3d = keypoints[:, :, -1].sum(axis=0)/v[valid_joint]
-    # P2: P矩阵的最后一行：(1, nViews, 1, 4)
+    # P2: The last row of the P matrix: (1, nViews, 1, 4)
     if len(Pall.shape) == 3:
         P0 = Pall[None, :, 0, :]
         P1 = Pall[None, :, 1, :]
@@ -33,7 +33,7 @@ def batch_triangulate(keypoints_, Pall, min_view=2):
         P0 = Pall[:, :, 0, :].swapaxes(0, 1)
         P1 = Pall[:, :, 1, :].swapaxes(0, 1)
         P2 = Pall[:, :, 2, :].swapaxes(0, 1)
-    # uP2: x坐标乘上P2: (nJoints, nViews, 1, 4)
+    # uP2: x-coordinate multiplied by P2: (nJoints, nViews, 1, 4)
     uP2 = keypoints[:, :, 0].T[:, :, None] * P2
     vP2 = keypoints[:, :, 1].T[:, :, None] * P2
     conf = keypoints[:, :, 2].T[:, :, None]
@@ -77,7 +77,7 @@ Cnk = make_Cnk(MAX_VIEWS, 3)
 
 def robust_triangulate_point(kpts2d, Pall, dist_max, min_v = 3):
     nV = kpts2d.shape[0]
-    if len(kpts2d) < min_v:# 重建失败
+    if len(kpts2d) < min_v:# Failure to rebuild
         return [], None
     # min_v = max(2, nV//2)
     # 1. choose the combination of min_v
@@ -102,15 +102,15 @@ def robust_triangulate_point(kpts2d, Pall, dist_max, min_v = 3):
     # TODO:naive weight:
     conf = kpts2d[..., -1]
     weight = conf
-    # (valid > 0)*weight_self 一项用于强制要求使用到的两个视角都需要被用到
-    # 增加一项使用的视角数的加成
+    # (valid > 0)*weight_self One item is used to mandate that both perspectives used to the
+    # Adds a bonus to the number of viewpoints used
     weight_sum = (weight * valid).sum(axis=0) + ((valid > 0)*weight_self).sum(axis=0) - min_v * 100
-    if weight_sum.max() < 0:# 重建失败
+    if weight_sum.max() < 0:# Failure to rebuild
         return [], None
     best = weight_sum.argmax()
     if (err[index_[best], best] > dist_max).any():
         return [], None
-    # 对于选出来的proposal，寻找其大于0的其他视角
+    # For the selected proposals, look for alternative perspectives that are greater than 0
     point = proposals[best]
     best_add = np.where(valid[:, best])[0].tolist()
     index = list(index_[best])
@@ -471,7 +471,7 @@ class SimpleMatchAndTriangulator(SimpleTriangulator):
 
     def _simple_associate2d_triangulate(self, data, affinity, dimGroups, prev_id):
         # sum1 = affinity.sum(axis=1)
-        # 注意：这里的排序应该是对每个视角，挑选最大的一个
+        # Note: the ordering here should be for each viewpoint, picking the largest one
         sum1 = np.zeros((affinity.shape[0]))
         for i in range(len(dimGroups)-1):
             start, end = dimGroups[i], dimGroups[i+1]
@@ -512,7 +512,7 @@ class SimpleMatchAndTriangulator(SimpleTriangulator):
 
                 k2d = res['keypoints2d']
                 valid_view = (k2d[..., 2] > 0).sum(axis=-1) > self.min_joints
-                # if valid_view.sum() < self.min_views - len(results): # 这里如果是有前一帧的话，len(results)会是2；不知道之前为啥有这个条件使用
+                # if valid_view.sum() < self.min_views - len(results): # Here, len(results) would be 2 if there was a previous frame; I don't know why this condition was used before
                 if valid_view.sum() < self.min_views:
                     self.log('[associate] Skip proposal {}->{} with not enough valid view {}'.format(idx, indices, (k2d[..., 2] > 0).sum(axis=-1)))
                     continue
@@ -714,14 +714,14 @@ class SimpleMatchAndTriangulator(SimpleTriangulator):
             if flag_tracked >= 0 and (flag_current == NOT_VISITED or flag_current == NOT_FOUND):
                 self._track_update(res, pids_free[flag_tracked])
             elif (flag_tracked == NOT_FOUND or flag_tracked==NOT_VISITED) and flag_current >= 0:
-                # 没有跟踪到，但是有当前帧的3D的，合并
+                # Not tracked, but have current frame in 3D, merged
                 self.log('[{:06d}] Merge track {} to {}'.format(self.time, idx_match, pids_used[flag_current]))
                 self._track_merge(res, pids_used[flag_current])
             elif flag_tracked == NOT_FOUND and flag_current == NOT_FOUND:
                 # create a new track
                 self._track_add(res)
             else:
-                # 丢弃
+                # discards
                 self.log('[{:06d}] Remove track {}. No close points'.format(self.time, idx_match))
 
         for pid in list(self.tracks.keys()):

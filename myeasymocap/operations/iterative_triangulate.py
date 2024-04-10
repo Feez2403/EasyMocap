@@ -106,10 +106,10 @@ def iterative_triangulate(kpts2d, RT,
         # for joint, we calculate the mean distance of this joint
         out_joint = np.where((ratio_outlier_joint > thres_outlier_joint) & (error_joint > dist_max))[0]
         if len(out_view) > 1:
-            # TODO: 如果全都小于0的话，相当于随机丢了，应该增加视角的置信度
-            # 应该生成多个proposal；然后递归的去寻找
-            # 不应该直接抛弃的
-            # 如果有previous的情况，应该用previous来作为判断标准
+            # TODO: If they are all less than 0, it is equivalent to a random drop, and the confidence level of the perspective should be increased.
+            # Multiple proposals should be generated; then recursively look for the
+            # Shouldn't have just thrown it away.
+            # If there is a previous case, the previous should be used as a judgment criterion
             # cfg = dict(min_conf=min_conf, min_view=min_view, min_joints=min_joints, dist_max=dist_max, dist_track=dist_track,
             #            thres_outlier_view=thres_outlier_view, thres_outlier_joint=0.4, debug=True, previous=None)
             if debug: mywarn('[triangulate] More than one outlier view: {}, stop triangulation.'.format(ratio_outlier_view))

@@ -49,7 +49,7 @@ class VisBase:
         else:
             vis = merge(vis)
         vis = cv2.resize(vis, None, fx=self.scale, fy=self.scale)
-        vis = add_logo(vis)
+        #vis = add_logo(vis)
         # TODO: 从输入的Meta里面读入图片名字
         outname = join(self.output, self.name, '{:06d}.jpg'.format(self.count))
         os.makedirs(os.path.dirname(outname), exist_ok=True)

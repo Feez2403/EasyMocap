@@ -1,5 +1,5 @@
 data: config/datasets/mvimage.yml
-exp: config/mvmp/detect_match_triangulate_fitSMPL.yml
+exp: config/mvmp/gt_bbox_triangulate_fitSMPL.yml
 data_opts:
   root: TO_BE_FILLED
   subs: ['1','2','3','4','5','6','7']
@@ -10,8 +10,7 @@ exp_opts:
   at_step:
     detect:
       args:
-        min_length: 50
-        max_length: 2000
+        folder: data/wildtrack/annotations_positions
     match:
       args:
         cfg_match:
@@ -23,13 +22,13 @@ exp_opts:
             dist_max: 30 # pixel
             dist_track: 100 # 100mm；
         cfg_track:
-          max_person: 10
-          final_ranges: [[0, -6, -1], [9, 25, 3]] # Ranges of the final output, only used for filtering at output time
-          final_max_person: 10
+          max_person: 100
+          #final_ranges: [[-5, -10, -1], [15, 25, 5]] # Ranges of the final output, only used for filtering at output time
+          final_max_person: 50
   at_final:
     collect:
       args:
-        min_frame: 20
+        min_frame: 4
     fitting_each_person:
       args:
         stages:
@@ -40,5 +39,5 @@ exp_opts:
                   weight: 5.
     vis_render:
       args:
-        view_list: [0,1,2,3,4,5,6]
+        view_list: [3]
         scale: 1.

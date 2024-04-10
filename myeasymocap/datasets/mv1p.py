@@ -237,9 +237,9 @@ class MVDataset(ImageDataBase):
                     ret_list['imgnames'] = val
             elif key == 'openpose':
                 ret_list[key] = [v['joints'] for v in val]
-                # 同时返回PAF
+                # Also return PAF
                 ret_list[key+'_paf'] = [v['pafs'] for v in val]
-                # check一下PAF:
+                # Check the PAF:
                 for nv in range(len(ret_list[key])):
                     ret_list[key+'_paf'][nv][(8, 1)] = ret_list[key+'_paf'][nv].pop((1, 8)).T
                 ret_list[key], ret_list[key+'_paf'] = self.filter_openpose(ret_list[key], ret_list[key+'_paf'])
@@ -281,7 +281,7 @@ class MVMP(MVDataset):
         val = []
         for annname in annotnames:
             annots = read_json(annname)['annots']
-            # 在这里进行filter，去掉不需要的2D
+            # Filter here to remove unwanted 2Ds
             annots_valid = []
             for annot in annots:
                 flag = True

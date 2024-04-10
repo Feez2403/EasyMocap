@@ -1,13 +1,13 @@
-init_params: # 初始化姿态
+init_params: # Initialization Stance
   module: myeasymocap.operations.init.InitParams
   key_from_data: [keypoints3d]
   args:
     num_poses: 69
     num_shapes: 10
-fitShape: # 这一步需要根据骨长优化一下SMPL的shape参数
+fitShape: #  This step requires a bit of optimization of the shape parameter of SMPL based on the length of the bone
   module: myeasymocap.operations.optimizer.Optimizer
   key_from_data: [keypoints3d]
-  key_from_previous: [model, params] # 这一步优化所使用的model，是一个可调用的函数，负责把params的输入变成输出，而不用考虑其他，与SMPL model是不一样的
+  key_from_previous: [model, params] # The model used for this step of the optimization is a callable function that is responsible for turning the inputs of params into outputs without having to think about anything else, which is not the same as the SMPL model
   args:
     optimizer_args: {optim_type: lbfgs}
     optimize_keys: [shapes]
@@ -23,16 +23,16 @@ fitShape: # 这一步需要根据骨长优化一下SMPL的shape参数
         weight: 0.1
         module: myeasymocap.operations.loss.RegLoss
         key_from_output: [shapes]
-        key_from_infos: [] # TODO: 根据2D的置信度来计算smooth权重
+        key_from_infos: [] # TODO: Calculate the smooth weights based on the confidence level of 2D
         args:
           key: shapes
           norm: l2
-init_RT: # 这一步中，首先将SMPL参数的shape参数进行整段平均。重新优化更新RT参数
+init_RT: # In this step, the shape parameter of the SMPL parameter is first averaged over the whole segment. Re-optimize to update the RT parameters
   module: myeasymocap.operations.optimizer.Optimizer
   key_from_data: [keypoints3d]
-  key_from_previous: [model, params] # 这一步优化所使用的model，是一个可调用的函数，负责把params的输入变成输出，而不用考虑其他，与SMPL model是不一样的
-  # 这样设计的目的是对于一些不只是SMPL本身的模型，可以在外面套一层接口
-  # model是一个纯函数，用来进行可视化
+  key_from_previous: [model, params] # The model used for this step of the optimization is a callable function that is responsible for turning the inputs of params into outputs without having to think about anything else, which is not the same as the SMPL model
+  # This is designed so that for some models that are more than just SMPL itself, a layer of interfaces can be applied on the outside
+  # model is a pure function to visualize the results
   args:
     optimizer_args: {optim_type: lbfgs}
     optimize_keys: [Th, Rh]
@@ -50,10 +50,10 @@ init_RT: # 这一步中，首先将SMPL参数的shape参数进行整段平均。
         weight: 1.
         module: myeasymocap.operations.loss.Smooth
         key_from_output: [Th, keypoints]
-        key_from_infos: [] # TODO: 根据2D的置信度来计算smooth权重
+        key_from_infos: [] # TODO: Calculate the smooth weights based on the 2D confidence level
         args:
           keys: [keypoints, Th]
-          smooth_type: [Linear, Linear] # 这个depth似乎需要相机参数进行转换
+          smooth_type: [Linear, Linear] # This depth seems to require the camera parameters to be converted
           norm: [l2, l2]
           order: [2, 2]
           weights: [10., 100.]
@@ -81,10 +81,10 @@ refine_poses:
         weight: 1.
         module: myeasymocap.operations.loss.Smooth
         key_from_output: [poses, Th, keypoints]
-        key_from_infos: [] # TODO: 根据2D的置信度来计算smooth权重
+        key_from_infos: [] # TODO: Calculate the smooth weights based on the 2D confidence level
         args:
           keys: [Th, poses, keypoints]
-          smooth_type: [Linear, Linear, Linear] # 这个depth似乎需要相机参数进行转换
+          smooth_type: [Linear, Linear, Linear] # This depth seems to require the camera parameters to be converted
           norm: [l2, l2, l2]
           order: [2, 2, 2]
           weights: [10., 10., 10.,]
@@ -101,7 +101,7 @@ refine_poses:
         weight: 0.1
         module: myeasymocap.operations.loss.RegLoss
         key_from_output: [shapes]
-        key_from_infos: [] # TODO: 根据2D的置信度来计算smooth权重
+        key_from_infos: [] # TODO: Calculate the smooth weights based on the 2D confidence level
         args:
           key: shapes
           norm: l2

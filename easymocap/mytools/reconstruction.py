@@ -57,11 +57,11 @@ def batch_triangulate(keypoints_, Pall, keypoints_pre=None, lamb=1e3):
     valid_joint = np.where(v > 1)[0]
     keypoints = keypoints_[:, valid_joint]
     conf3d = keypoints[:, :, -1].sum(axis=0)/v[valid_joint]
-    # P2: P矩阵的最后一行：(1, nViews, 1, 4)
+    # P2: The last row of the P matrix: (1, nViews, 1, 4)
     P0 = Pall[None, :, 0, :]
     P1 = Pall[None, :, 1, :]
     P2 = Pall[None, :, 2, :]
-    # uP2: x坐标乘上P2: (nJoints, nViews, 1, 4)
+    # uP2: x-coordinate multiplied by P2. (nJoints, nViews, 1, 4)
     uP2 = keypoints[:, :, 0].T[:, :, None] * P2
     vP2 = keypoints[:, :, 1].T[:, :, None] * P2
     conf = keypoints[:, :, 2].T[:, :, None]
@@ -107,11 +107,11 @@ def check_limb(keypoints3d, limb_means, thres=0.5):
         if not (keypoints3d[src, 3] > 0 and keypoints3d[dst, 3] > 0):
             continue
         cnt += 1 
-        # 计算骨长
+        # Calculate bone length
         l_est = np.linalg.norm(keypoints3d[src, :3] - keypoints3d[dst, :3])
         if abs(l_est - val['mean'])/val['mean']/val['std'] > thres:
             valid = False
             break
-    # 至少两段骨头可以使用
+    # At least two bones can be used
     valid = valid and cnt > 2
     return valid

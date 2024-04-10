@@ -118,10 +118,13 @@ class Render_multiview(VisBase):
 class RenderAll_multiview(Render_multiview):
     def __call__(self, results, cameras, imgnames, meta, **kwargs):
         body_model = kwargs[self.model_name]
+        print('Meta Index:', meta['index'])
         for index in tqdm(meta['index'], desc=self.name):
+            print('[{}] Render frame {}'.format(self.name, index))
+            print('Results:', results.keys())
             results_frame = []
             for pid, result in results.items():
-                if index >= result['frames'][0] and index <= result['frames'][-1]:
+                if index in result['frames']:
                     frame_rel = result['frames'].index(index)
                     results_frame.append({
                         'id': pid,
