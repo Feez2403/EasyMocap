@@ -9,9 +9,9 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning import seed_everything
 # https://github.com/Project-MONAI/MONAI/issues/701
-import resource
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+#import resource
+#rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+#resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 class plwrapper(pl.LightningModule):
     def __init__(self, cfg, mode='train'):

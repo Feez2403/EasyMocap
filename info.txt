@@ -1,1 +1,5 @@
  eval "$(/home/florian/anaconda3/bin/conda shell.bash hook)"
+
+# run instance masks from vertices 
+ python apps/postprocess/render.py data/wildtrack --exp output-smpl-3d --mode instance-d0.1
+

@@ -53,7 +53,7 @@ class BaseBase:
         self.object_keys = object_keys
 
     def object_factory(self, root, obj_type, obj_args, info, params, file_cache):
-        # 通用的一些参数：例如SMPL
+        # Some generic parameters: e.g. SMPL
         pid = obj_args.get('pid', -1) # pid only available in human or ball
         sub = info['sub']
         if 'frame' in params:
@@ -319,12 +319,13 @@ class BaseBase:
             'rgb': rgb, 'coord': coord,
             'ray_o': ray_o, 'ray_d': ray_d, 'viewdirs': ray_d/np.linalg.norm(ray_d, axis=-1, keepdims=True),
         }
-        # TODO:这里是每个物体分别进行采样，没有统一调度
+        # TODO:Here each object is sampled separately and there is no uniform scheduling
         # sample the ray in the fore
         for key, model in objects.items():
             with Timer('sample '+key, not self.timer):
                 near, far, mask = model(ray_o, ray_d, coord)
-            # 这里把单个物体的相关信息直接返回了，用于兼容单人的情况，单人就不用考虑如何取mask了
+            # Here the information about a single object is returned directly for compatibility with a single person
+            # who doesn't have to think about how to fetch a mask
             for k in ['rgb', 'coord', 'ray_o', 'ray_d', 'viewdirs']:
                 ret[key+'_'+k] = ret[k][mask]
             ret.update({
@@ -437,8 +438,9 @@ class BaseDataset(BaseBase):
             msk_rand = (msk_rand * 255).astype(np.uint8)
             img[msk==0] = -1.
             # img[msk==0] = msk_rand[msk==0]
-        # 这里选择了先进行畸变矫正，再进行scale，这样相机参数就不需要修改
-        # 由于预先进行了map，所以畸变矫正不会很慢
+        # Here we chose to do the distortion correction first, and then scale
+        # so that the camera parameters don't need to be changed.
+        # Aberration correction will not be slow due to pre-map
         if self.image_args.scale != 1:
             H, W = int(img.shape[0] * self.image_args['scale']), int(img.shape[1] * self.image_args['scale'])
             img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
@@ -471,7 +473,8 @@ class BaseDataset(BaseBase):
             if os.path.exists(mskname) and self.split == 'train' and self.image_args.ignore_back:
                 oncewarn('using mask of background')
                 _back_mask = self.read_image(mskname, image_args, info, isgray=True)
-                # 畸变矫正后边缘上填充的值是0，这里取反之后边缘上的填充值又变成了1
+                # The value of the padding on the edges after distortion correction is 0. 
+                # Here the value of the padding on the edges becomes 1 after inversion.
                 _back_mask[_back_mask>0] = 1.
                 back_mask = (1. - _back_mask) * back_mask
             self.back_mask_cache[sub] = back_mask

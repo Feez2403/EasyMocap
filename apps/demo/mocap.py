@@ -9,7 +9,7 @@ def check_image(path):
     if not check_exists(join(path, 'images')):
         mywarn('Images not found in {}'.format(path))
         if exists(join(path, 'videos')):
-            cmd = 'python3 apps/preprocess/extract_image.py {}'.format(path)
+            cmd = 'python apps/preprocess/extract_image.py {}'.format(path)
             run_cmd(cmd)
 
 def check_camera(path, mode):
@@ -69,7 +69,7 @@ def mocap_demo(path, mode, exp=None):
             opt_data += ' args.ranges {},{},{}'.format(*args.ranges)
         # config for experiment
         opt_exp = ' args.debug {}'.format('True' if args.debug else 'False')
-        cmd = 'python3 apps/fit/triangulate1p.py --cfg_data {cfg_data} --opt_data {opt_data} --cfg_exp {cfg_exp} --opt_exp {opt_exp}'.format(
+        cmd = 'python apps/fit/triangulate1p.py --cfg_data {cfg_data} --opt_data {opt_data} --cfg_exp {cfg_exp} --opt_exp {opt_exp}'.format(
             cfg_data=cfg_data,
             cfg_exp=cfg_exp,
             opt_data=opt_data,
@@ -77,7 +77,7 @@ def mocap_demo(path, mode, exp=None):
         )
         run_cmd(cmd)
         # compose videos
-        cmd = f'python3 -m easymocap.visualize.ffmpeg_wrapper {dir_k3d}/match --fps 50'
+        cmd = f'python -m easymocap.visualize.ffmpeg_wrapper {dir_k3d}/match --fps 50'
         run_cmd(cmd)
     # TODO: check triangulation
     # run reconstruction
@@ -92,7 +92,7 @@ def mocap_demo(path, mode, exp=None):
         cfg_exp = config.exp
         _config_data = Config.load(cfg_data)
 
-        cmd = f'python3 apps/fit/fit.py --cfg_model {cfg_model} --cfg_data {cfg_data} --cfg_exp {cfg_exp}'
+        cmd = f'python apps/fit/fit.py --cfg_model {cfg_model} --cfg_data {cfg_data} --cfg_exp {cfg_exp}'
 
         # opt data
         output = join(path, 'output-{}'.format(exp))
@@ -128,7 +128,7 @@ def mocap_demo(path, mode, exp=None):
         run_cmd(cmd)
     videoname = join(path, 'output-{}'.format(exp), 'smplmesh.mp4')
     if not exists(videoname) or args.restart:
-        cmd = 'python3 -m easymocap.visualize.ffmpeg_wrapper {data}/output-{exp}/smplmesh --fps 50'.format(
+        cmd = 'python -m easymocap.visualize.ffmpeg_wrapper {data}/output-{exp}/smplmesh --fps 50'.format(
             data=path, exp=exp
         )
         run_cmd(cmd)
@@ -137,7 +137,7 @@ def mono_demo(path, mode, exp=None):
     check_image(path)
     # check cameras
     if not os.path.exists(join(path, 'intri.yml')):
-        cmd = f'python3 apps/calibration/create_blank_camera.py {path}'
+        cmd = f'python apps/calibration/create_blank_camera.py {path}'
         run_cmd(cmd)
     # run reconstruction
     exp = mode if exp is None else exp
@@ -153,7 +153,7 @@ def mono_demo(path, mode, exp=None):
         cfg_data = config.data
         cfg_model = config.model
         cfg_exp = config.exp
-        cmd = f'python3 apps/fit/fit.py --cfg_model {cfg_model} --cfg_data {cfg_data} --cfg_exp {cfg_exp}'
+        cmd = f'python apps/fit/fit.py --cfg_model {cfg_model} --cfg_data {cfg_data} --cfg_exp {cfg_exp}'
         _config_data = Config.load(cfg_data)
 
         # opt data
@@ -189,7 +189,7 @@ def mono_demo(path, mode, exp=None):
         log(cmd.replace(output, '${output}').replace(path, '${data}'))
         run_cmd(cmd)
 
-        cmd = 'python3 -m easymocap.visualize.ffmpeg_wrapper {data}/output-{exp}/smplmesh/{sub} --fps {fps}'.format(
+        cmd = 'python -m easymocap.visualize.ffmpeg_wrapper {data}/output-{exp}/smplmesh/{sub} --fps {fps}'.format(
             data=path, exp=exp, sub=sub, fps=30
         )
         run_cmd(cmd)
@@ -220,18 +220,18 @@ def run_triangulation(cfg_data, cfg_exp, path, out, args):
     opt_exp = ' args.debug {}'.format('True' if args.debug else 'False')
     if args.triangulator_min_views is not None:
         opt_exp += ' args.config.keypoints2d.min_view {view}'.format(view=args.triangulator_min_views)
-    cmd = 'python3 apps/fit/triangulate1p.py --cfg_data {cfg_data} --opt_data {opt_data} --cfg_exp {cfg_exp} --opt_exp {opt_exp}'.format(
+    cmd = 'python apps/fit/triangulate1p.py --cfg_data {cfg_data} --opt_data {opt_data} --cfg_exp {cfg_exp} --opt_exp {opt_exp}'.format(
         cfg_data=cfg_data,
         cfg_exp=cfg_exp,
         opt_data=opt_data,
         opt_exp=opt_exp
     )
     run_cmd(cmd)
-    cmd = f'python3 -m easymocap.visualize.ffmpeg_wrapper {out}/match --fps {args.fps}'
+    cmd = f'python -m easymocap.visualize.ffmpeg_wrapper {out}/match --fps {args.fps}'
     run_cmd(cmd)
 
 def append_mocap_flags(path, output, cfg_data, cfg_model, cfg_exp, config, args):
-    cmd = f'python3 apps/fit/fit.py --cfg_model {cfg_model} --cfg_data {cfg_data} --cfg_exp {cfg_exp}'
+    cmd = f'python apps/fit/fit.py --cfg_model {cfg_model} --cfg_data {cfg_data} --cfg_exp {cfg_exp}'
     _config_data = Config.load(cfg_data)
     # opt data
     opt_data = ['args.path', path, 'args.out', output]
@@ -282,17 +282,17 @@ def append_mocap_flags(path, output, cfg_data, cfg_model, cfg_exp, config, args)
         if args.subs is not None:
             subs_ = args.subs
         for sub in subs_:
-            cmd = f'python3 -m easymocap.visualize.ffmpeg_wrapper {output}/smplmesh/{sub} --fps {args.fps}'
+            cmd = f'python -m easymocap.visualize.ffmpeg_wrapper {output}/smplmesh/{sub} --fps {args.fps}'
             run_cmd(cmd)
     else:
-        cmd = f'python3 -m easymocap.visualize.ffmpeg_wrapper {output}/smplmesh --fps {args.fps}'
+        cmd = f'python -m easymocap.visualize.ffmpeg_wrapper {output}/smplmesh --fps {args.fps}'
         run_cmd(cmd)
     return cmd
 
 def workflow(work, args):
     if not os.path.exists(join(args.path, 'images')):
         mywarn('Images not exists, extract it use default setting')
-        cmd = f'python3 apps/preprocess/extract_image.py {args.path}'
+        cmd = f'python apps/preprocess/extract_image.py {args.path}'
         run_cmd(cmd)
     workflow_dict = Config.load('config/mocap_workflow.yml')
     for filename in glob(join('config', 'mocap_workflow_*.yml')):
