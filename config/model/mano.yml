@@ -1,6 +1,6 @@
 module: "easymocap.smplmodel.body_model.SMPLlayer"
 args:
-  model_path: "data/bodymodels/manov1.2/MANO_LEFT.pkl"
+  model_path: "data/smplx/smplh/MANO_LEFT.pkl"
   model_type: "mano"
   gender: "male"
   device: "cuda"

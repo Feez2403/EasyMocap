@@ -7,12 +7,12 @@
 '''
 from .nerf import Nerf, EmbedMLP
 import torch
-import spconv
-try:
-    if spconv.__version__.split('.')[0] == '2':
-        import spconv.pytorch as spconv
-except:
-    pass
+import spconv.pytorch as spconv
+#try:
+#    if spconv.__version__.split('.')[0] == '2':
+#        import spconv.pytorch as spconv
+#except:
+#    pass
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -174,7 +174,7 @@ class Network(Nerf):
         nerf['ch_pts_extra'] = sparse['dims'][-1]*2 + sparse['dims'][-2] + sparse['dims'][-3]
         nerf['latent'] = {'time': embed_time.shape[1]}
         if use_canonical_viewdirs and use_viewdirs:
-            # 注意:这里不能写*2, 因为多个人的时候这个字典没有拷贝
+            # Note: You can't write *2 here, because the dictionary is not copied when there are more than one person.
             nerf['dim_dir'] = 6
         self.use_canonical_viewdirs = use_canonical_viewdirs
         print('- [Load Network](Neuralbody) use_viewdirs={}, use_canonical_viewdirs={}'.format(use_viewdirs, use_canonical_viewdirs))

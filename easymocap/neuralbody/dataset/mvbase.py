@@ -10,6 +10,10 @@ from ...mytools.timer import Timer
 from .utils_sample import get_bounds, get_rays, sample_rays_rate, sample_rays
 import numpy as np
 from .utils_reader import img_to_numpy, numpy_to_img, read_json_with_cache, parse_semantic
+import pywavefront
+
+def load_mesh(obj_filepath):
+    return pywavefront.Wavefront(obj_filepath)
 
 class BaseBase:
     def __init__(self, split):
@@ -237,6 +241,12 @@ class BaseBase:
         elif obj_type == 'plane':
             from .utils_sample import PlaneSampler
             obj = PlaneSampler(split=self.split, **obj_args)
+        elif obj_type == 'checkboard':
+            from .utils_sample import CheckBoardSampler
+            obj = CheckBoardSampler(split=self.split, **obj_args)
+        elif obj_type == 'mesh':
+            from .utils_sample import MeshSampler       
+            obj = MeshSampler(split=self.split, **obj_args)
         else:
             myerror('[Error] Unknown object type: {}'.format(obj_type))
             raise NotImplementedError
@@ -372,6 +382,16 @@ class BaseDataset(BaseBase):
         self.image_args = image_args
         self.sample_args = sample_args
         self.parse_object_args(object_keys, object_args, ignore_keys)
+        #print("DATASET")
+        #print("cameras:", self.cameras)
+        #print("subs:", self.subs)
+        #print("ranges:", self.ranges)
+        #print("infos:", self.infos)
+        #print("split:", self.split)
+        #print("image_args:", self.image_args)
+        #print("object_keys:", self.object_keys)
+        #print("object_args:", self.object_args)
+        #print("ignore_keys:", self.ignore_keys)
         self.debug = False
         self.check = False
         self.check_data()
@@ -382,7 +402,8 @@ class BaseDataset(BaseBase):
         for i in tqdm(range(len(self)), desc='check all the data'):
             info = self.infos[i]
             sub = info['sub']
-            if sub in visited:continue
+            if sub in visited:
+                continue
             visited.add(sub)
             data = self[i]
 
@@ -501,8 +522,21 @@ class BaseDataset(BaseBase):
             back = self.read_bkgd(imgname, self.image_args, info)        
         with Timer('read back', not self.timer):
             back_mask = self.read_backmask(imgname, self.image_args, info, blankshape=img.shape[:2])
+        
         object_keys = info.get('object_keys', self.object_keys)
+        
         objects = self.get_objects(self.root, info, object_keys, self.object_args)
+        
+        if self.split == 'train':
+            objs_to_remove = []
+            for key, obj in objects.items():
+                #remove humans that are not in the image
+                if 'human' in key:
+                    if not np.any(obj.instance):
+                        objs_to_remove.append(key)
+            for key in objs_to_remove:
+                objects.pop(key)
+            
         # sample the ray from image
         ray_o, ray_d, rgb, coord = self.sample_ray(img, back_mask, info, objects, debug=self.debug)
         ret = self.sample_near_far(rgb, ray_o, ray_d, coord, objects)

@@ -24,6 +24,7 @@ class RenderWrapper(nn.Module):
 
     def forward(self, batch):
         ret = self.renderer(batch)
+        print(ret.keys())
         loss = 0
         scalar_stats = {}
         for key, func in self.loss.items():

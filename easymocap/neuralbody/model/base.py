@@ -79,7 +79,7 @@ def get_near_far(ray_o, ray_d, bounds):
 
     Returns:
         near, far, mask_at_box
-        这里的near是实际物理空间中的深度
+        Here near is the depth in actual physical space
     """
     norm_d = torch.norm(ray_d, dim=-1, keepdim=True)
     viewdir = ray_d/norm_d
@@ -88,7 +88,7 @@ def get_near_far(ray_o, ray_d, bounds):
     inv_dir = 1.0/viewdir
     tmin = (bounds[:1] - ray_o[:1])*inv_dir
     tmax = (bounds[1:2] - ray_o[:1])*inv_dir
-    # 限定时间是增加的
+    # The time limit is increased
     t1 = torch.minimum(tmin, tmax)
     t2 = torch.maximum(tmin, tmax)
 

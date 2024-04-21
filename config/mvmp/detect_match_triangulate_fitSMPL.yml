@@ -9,7 +9,7 @@ args:
       args:
         model: yolov5m
         name: person
-        min_length: 150 # this two threshold control the wanted bboxes
+        min_length: 20 # this two threshold control the wanted bboxes
         max_length: 1000
     keypoints2d:
       module: myeasymocap.backbone.hrnet.myhrnet.MyHRNet
@@ -45,8 +45,8 @@ args:
           min_joints: 9
           distance:
             mode: epipolar
-            threshold: 0.05 # 用于控制匹配的内点阈值
-            threshold_track: 0.05 # track的匹配的内点阈值
+            threshold: 0.05 # Inlier threshold used to control matching
+            threshold_track: 0.05 # Track matching interior point threshold
             min_common_joints: 9
             cfg_svt:
               debug: 0
@@ -63,14 +63,14 @@ args:
             dist_track: 100 # mm
         cfg_track:
           max_person: 100
-          max_missing: 3 # 最多丢失3帧就要删除
-          final_ranges: [[-10000, -10000, -10000], [10000, 10000, 10000]] # 最终的输出的range，仅用于输出的时候的筛选
+          max_missing: 100 # Delete if at most 3 frames are lost
+          final_ranges: [[-10000, -10000, -10000], [10000, 10000, 10000]] #The final output range is only used for filtering during output.
           final_max_person: 100
           kintree: [[2, 3], [5, 6], [3, 4], [6, 7], [11, 22], [22, 23], [11, 24], [14, 19], [19, 20], [14, 21]]
     vis_kpts3d:
       module: myeasymocap.io.vis.Vis3D
       key_from_data: [images, cameras]
-      key_from_previous: [results] # 用于最后的一起优化
+      key_from_previous: [results] # Used for final optimization together
       args:
         scale: 0.5
         lw_factor: 10
@@ -85,13 +85,13 @@ args:
       key_from_data: [keypoints3d, pids]
       args:
         key: keypoints3d
-        min_frame: 20
-    load_body_model: # 载入身体模型
+        min_frame: 3
+    load_body_model: # Load body model
       module: myeasymocap.io.model.SMPLLoader
       args:
         model_path: models/pare/data/body_models/smpl/SMPL_NEUTRAL.pkl # load PARE model
         regressor_path: models/J_regressor_body25.npy
-    #   # 这个模块返回两个内容：body_model, model; 其中的body_model是用来进行可视化的
+    #   # This module returns two contents：body_model, model; The body_model is used for visualization
     fitting_each_person:
       module: myeasymocap.stages.basestage.StageForFittingEach
       key_from_previous: [model, results]
@@ -105,16 +105,16 @@ args:
       key_from_previous: [results, model]
       args:
         name: smpl
-    vis_render:
-      module: myeasymocap.io.vis3d.RenderAll_multiview
-      key_from_data: [meta, cameras, imgnames]
-      key_from_previous: [results, body_model]
-      args:
-        backend: pyrender
-        view_list: [0]
-        scale: 0.5
-    make_video:
-      module: myeasymocap.io.video.MakeVideo
-      args:
-        fps: 60
-        keep_image: False
+    #vis_render:
+    #  module: myeasymocap.io.vis3d.RenderAll_multiview
+    #  key_from_data: [meta, cameras, imgnames]
+    #  key_from_previous: [results, body_model]
+    #  args:
+    #    backend: pyrender
+    #    view_list: [0]
+    #    scale: 0.5
+    #make_video:
+    #  module: myeasymocap.io.video.MakeVideo
+    #  args:
+    #    fps: 60
+    #    keep_image: False

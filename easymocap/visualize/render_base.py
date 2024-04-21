@@ -58,7 +58,7 @@ class Results:
         self.skelnames = sorted(glob(join(path, '*.json')))
         self.ismulti = False
         if len(self.skelnames) == 0:
-            # 尝试找多视角的结果
+            # Try to find results for multiple perspectives
             subs = sorted(os.listdir(path))
             assert len(subs) > 0, path
             self.ismulti = True
@@ -70,7 +70,7 @@ class Results:
         self.rend_type = rend_type
         self.read_func = {'skel': read_keypoints3d, 'mesh': read_smpl}[rend_type]
         if operation.startswith('dilation'):
-            # TODO: 暂时直接解析
+            # TODO: Direct parsing for now
             opfunc = get_dilation_of_mesh(float(operation.replace('dilation:', '')))
         else:
             opfunc = lambda x:x
@@ -172,7 +172,7 @@ class Images:
 
     def __call__(self, basename):
         if self.images == 'none':
-            # 返回空的图像
+            # Returns an empty image
             imgs = {sub: self.blank.copy() for sub in self.subs}
             import ipdb; ipdb.set_trace()
         else:
@@ -224,7 +224,7 @@ class Repro:
         for nv, cam in enumerate(cams):
             img = images[cam]
             outname = join(self.out, basename+'_' + cam +'.jpg')
-            # K可能缩放过了，所以需要重新计算
+            # K may have been scaled down, so it needs to be recalculated
             P = cameras[cam]['K'] @ cameras[cam]['RT']
             for pid, info in results.items():
                 keypoints3d = info['keypoints3d']
@@ -274,7 +274,7 @@ class MIOutputs(Outputs):
         self.merge = merge
 
     def __call__(self, images, results, cameras, basename):
-        # 传个subs进来
+        # Send in a subs.
         # save the results to individual folders
         subs = list(images.keys())
         outputs = {}

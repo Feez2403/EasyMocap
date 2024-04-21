@@ -1,5 +1,8 @@
 # Training code based on PyTorch-Lightning
 import os
+# To run on windows, need to set PL_TORCH_DISTRIBUTED_BACKEND=gloo
+# on linux with NCCL just remove this line
+os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
 from os.path import join
 
 from easymocap.mytools.debug_utils import myerror

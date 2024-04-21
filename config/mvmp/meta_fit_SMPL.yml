@@ -1,13 +1,13 @@
-init_params: # Initialization Stance
+init_params: # Initialize posture
   module: myeasymocap.operations.init.InitParams
   key_from_data: [keypoints3d]
   args:
     num_poses: 69
     num_shapes: 10
-fitShape: #  This step requires a bit of optimization of the shape parameter of SMPL based on the length of the bone
+fitShape: # This step requires optimizing the SMPL shape parameters based on bone length.
   module: myeasymocap.operations.optimizer.Optimizer
   key_from_data: [keypoints3d]
-  key_from_previous: [model, params] # The model used for this step of the optimization is a callable function that is responsible for turning the inputs of params into outputs without having to think about anything else, which is not the same as the SMPL model
+  key_from_previous: [model, params] #The model used in this step of optimization is a callable function that is responsible for turning the input of params into output without considering other things. It is different from the SMPL model.
   args:
     optimizer_args: {optim_type: lbfgs}
     optimize_keys: [shapes]
@@ -23,16 +23,16 @@ fitShape: #  This step requires a bit of optimization of the shape parameter of 
         weight: 0.1
         module: myeasymocap.operations.loss.RegLoss
         key_from_output: [shapes]
-        key_from_infos: [] # TODO: Calculate the smooth weights based on the confidence level of 2D
+        key_from_infos: [] # TODO: Calculate smooth weight based on 2D confidence
         args:
           key: shapes
           norm: l2
-init_RT: # In this step, the shape parameter of the SMPL parameter is first averaged over the whole segment. Re-optimize to update the RT parameters
+init_RT: # In this step, the shape parameters of the SMPL parameters are first averaged over the entire section. Re-optimize and update RT parameters
   module: myeasymocap.operations.optimizer.Optimizer
   key_from_data: [keypoints3d]
-  key_from_previous: [model, params] # The model used for this step of the optimization is a callable function that is responsible for turning the inputs of params into outputs without having to think about anything else, which is not the same as the SMPL model
-  # This is designed so that for some models that are more than just SMPL itself, a layer of interfaces can be applied on the outside
-  # model is a pure function to visualize the results
+  key_from_previous: [model, params] # The model used in this step of optimization is a callable function that is responsible for turning the input of params into output without considering other things. It is different from the SMPL model.
+  # The purpose of this design is to add a layer of interfaces to some models that are not just SMPL itself.
+  # model is a pure function used for visualization
   args:
     optimizer_args: {optim_type: lbfgs}
     optimize_keys: [Th, Rh]
@@ -50,7 +50,7 @@ init_RT: # In this step, the shape parameter of the SMPL parameter is first aver
         weight: 1.
         module: myeasymocap.operations.loss.Smooth
         key_from_output: [Th, keypoints]
-        key_from_infos: [] # TODO: Calculate the smooth weights based on the 2D confidence level
+        key_from_infos: [] # TODO: Calculate smooth weight based on 2D confidence
         args:
           keys: [keypoints, Th]
           smooth_type: [Linear, Linear] # This depth seems to require the camera parameters to be converted
@@ -81,7 +81,7 @@ refine_poses:
         weight: 1.
         module: myeasymocap.operations.loss.Smooth
         key_from_output: [poses, Th, keypoints]
-        key_from_infos: [] # TODO: Calculate the smooth weights based on the 2D confidence level
+        key_from_infos: [] # TODO: Calculate the smooth weights based on the confidence level of 2D
         args:
           keys: [Th, poses, keypoints]
           smooth_type: [Linear, Linear, Linear] # This depth seems to require the camera parameters to be converted
@@ -101,7 +101,7 @@ refine_poses:
         weight: 0.1
         module: myeasymocap.operations.loss.RegLoss
         key_from_output: [shapes]
-        key_from_infos: [] # TODO: Calculate the smooth weights based on the 2D confidence level
+        key_from_infos: [] # TODO: Calculate the smooth weights based on the confidence level of 2D
         args:
           key: shapes
           norm: l2

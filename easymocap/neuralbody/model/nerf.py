@@ -127,6 +127,7 @@ class Nerf(Base):
         # Linear mode
         # wpts: (..., 3) => (..., 63)
         # return: (..., 1)
+        
         if self.embed_pts_name == 'hash':
             self.embed_pts.bound = self.datas_cache['bounds']
         # prepare latents
@@ -186,6 +187,18 @@ class Nerf(Base):
             'rgb': rgb_01,
             'raw_rgb': rgb
         }
+        #print(outputs['occupancy'].shape, outputs['rgb'].shape
+        #      , outputs['raw_alpha'].shape, outputs['raw_rgb'].shape)
+        #print("OCUPANCY")
+        #print(outputs['occupancy'])
+        #print("RGB")
+        #print(outputs['rgb'])
+        #print("RAW_ALPHA")
+        #print(outputs['raw_alpha'])
+        #print("RAW_RGB")
+        #print(outputs['raw_rgb'])
+        
+        
         return outputs
 
 class MultiLinear(nn.Module):

@@ -59,7 +59,7 @@ class NeRFGroundShadow(Nerf):
             D=shadow.D,
             W=shadow.W,
             input_ch=self.ch_pts + embed.shape[1],
-            output_ch=1, # 输出一维阴影
+            output_ch=1, # Output one-dimensional shadows
             init_bias=5,
             act_fn='none',
             skips=[]

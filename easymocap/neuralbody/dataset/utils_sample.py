@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import math
 from collections import namedtuple
+import pywavefront
 
 def get_rays(H, W, K, R, T):
     # calculate the camera origin
@@ -68,6 +69,14 @@ def sample_rays(bound_sum, mask_back, split, nrays=1024, **kwargs):
 def generate_weight_coords(bounds, rates, back_mask):
     coords = []
     for key in bounds.keys():
+        #print("Generate weight coords for key: ", key)
+        #print("Bounds: ", bounds[key])
+        #print("back_mask: ", back_mask)
+        #import matplotlib.pyplot as plt
+        #plt.imshow(back_mask)
+        #plt.show()
+        #plt.imshow(bounds[key])
+        #plt.show()
         coord_ = np.argwhere(bounds[key]*back_mask > 0)
         if rates[key] == 1.:
             coords.append(coord_)
@@ -92,7 +101,7 @@ def sample_rays_rate(bounds, rates, back_mask, nrays=1024, **kwargs):
     if 'method' in kwargs and kwargs['method'] == 'patch':
         cv2.imwrite('debug/back.jpg', (back_mask*255).astype(np.uint8))
         mask_valid = back_mask
-        # 腐蚀一下
+        # corrode it
         mask_valid[:, 0] = 0
         mask_valid[:, -1] = 0
         mask_valid[0, :] = 0
@@ -101,8 +110,8 @@ def sample_rays_rate(bounds, rates, back_mask, nrays=1024, **kwargs):
         patch_size = kwargs['patch_size']
         kernel = np.ones((2*patch_size//2+1, 2*patch_size//2+1), np.uint8)
         back_mask = cv2.erode(mask_valid, kernel, iterations=1)
-        # TODO: 这里每个object的mask并不会被erode掉
-        # 导致object的边缘也是会被选中的
+        # TODO: Here the mask of each object is not eroded.
+        # Causes the edges of the object to be selected as well
     coords = generate_weight_coords(bounds, rates, back_mask)
     if 'method' in kwargs and kwargs['method'] == 'patch':
         patch_size = kwargs['patch_size']
@@ -208,7 +217,7 @@ class AABBSampler(BaseSampler):
             scale = np.array(scale).reshape(1, 3)
             bounds = np.concatenate([center - scale, center + scale], axis=0)
         self.bounds = np.array(bounds).astype(np.float32)
-        self.depth_min = 0.05 # 限定最近距离
+        self.depth_min = 0.05 # Limit closest distance
         # self.method = method
         # self.no_mask = no_mask
         # self.instance = instance
@@ -251,7 +260,7 @@ class AABBSampler(BaseSampler):
         inv_dir = 1.0/viewdir
         tmin = (bounds[:1] - ray_o[:1])*inv_dir
         tmax = (bounds[1:2] - ray_o[:1])*inv_dir
-        # 限定时间是增加的
+        # The time limit is increased
         t1 = np.minimum(tmin, tmax)
         t2 = np.maximum(tmin, tmax)
         near = np.max(t1, axis=-1)
@@ -273,13 +282,13 @@ class AABBSampler(BaseSampler):
     def uniform_sample(self, ray_o, ray_d, coord, depth=None):
         near, far, mask_at_box = self.get_near_far(ray_o, ray_d, self.bounds, coord=coord)
         if depth is not None:
-            #TODO:考虑最近和最远
-            # 暂时只考虑修改near
+            #TODO:Consider nearest and furthest
+            # For the time being, only consider modifying the NEAR
             flag = mask_at_box & (depth > 0.05) & (depth<9999.)
             near[flag] = np.maximum(near[flag], depth[flag])
-        # 返回的near, far是以mask_at_box为大小的
+        # The returned near, far are in mask_at_box size.
         norm_d = np.linalg.norm(ray_d, axis=-1, keepdims=True)
-        # 返回的near far是去掉长度的
+        # The returned NEAR FAR is delimited by the length of the bbox
         near = near[mask_at_box] / norm_d[mask_at_box, 0]
         far = far[mask_at_box] / norm_d[mask_at_box, 0]
         return near, far, mask_at_box
@@ -323,7 +332,7 @@ class AABBwMask(AABBSampler):
 
         size_body = instance.sum()
         size_outer = mask_out_body.sum()
-        # 身体部分0.9, 身体以外的部分0.1
+        # Body parts 0.9, parts other than body 0.1
         rate_body = self.rate_body
         rate_outer = 1 - rate_body
         if size_body < 10 or size_outer < 10:
@@ -351,9 +360,9 @@ class AABBwMask(AABBSampler):
             ray_o_rt = (ray_o - T) @ (R.T).T
             ray_d_rt = ray_d @ (R.T).T
             near, far, mask_at_box = self.get_near_far(ray_o_rt, ray_d_rt, bounds, coord=coord)
-            # 返回的near, far是以mask_at_box为大小的
+            # The returned near, far are in mask_at_box size.
             norm_d = np.linalg.norm(ray_d, axis=-1, keepdims=True)
-            # 返回的near far是去掉长度的
+            # The returned NEAR FAR is delimited by the length of the bbox
             near = near[mask_at_box] / norm_d[mask_at_box, 0]
             far = far[mask_at_box] / norm_d[mask_at_box, 0]
             return near, far, mask_at_box
@@ -376,9 +385,9 @@ class TwoAABBSampler(BaseSampler):
         near_inter, far_inter, mask_inter = AABBSampler.get_near_far(ray_o, ray_d, self.bbox_inter, coord)
         near_outer, far_outer, mask_outer = AABBSampler.get_near_far(ray_o, ray_d, self.bbox_outer, coord)
         mask_at_box = mask_inter & mask_outer & (far_inter < far_outer)
-        # 返回的near, far是以mask_at_box为大小的
+        # The returned near, far are in mask_at_box size.
         norm_d = np.linalg.norm(ray_d, axis=-1, keepdims=True)
-        # 返回的near far是去掉长度的
+        # The returned NEAR FAR is delimited by the length of the bbox
         near = far_inter[mask_at_box] / norm_d[mask_at_box, 0]
         far = far_outer[mask_at_box] / norm_d[mask_at_box, 0]
         return near, far, mask_at_box
@@ -418,6 +427,55 @@ class PlaneSampler(AABBSampler):
             far = far[mask_xy]
         return near, far, mask
 
+
+class CheckBoardSampler(AABBSampler):
+    cache = {}
+    def __init__(self, center, radius, zranges, xybounds=None, **kwargs):
+        bounds = np.array([[center[0]-radius, center[1]-radius, center[2]+zranges[0]], [center[0]+radius, center[1]+radius, center[2]+zranges[1]]])
+        super().__init__(bounds=bounds, **kwargs)
+        self.center = center
+        self.radius = radius
+        self.xybounds = xybounds
+        self.zranges = zranges
+        self.feature = {'bounds': self.bounds}
+
+    def mask(self, K, R, T, H, W, **kwargs):
+        _KRT = tuple((K @ np.hstack([R, T])).astype(np.int32).reshape(-1).tolist())
+        if _KRT in self.cache.keys():
+            mask_bounds = self.cache[_KRT]
+        else:
+            mask_bounds = super().mask(K, R, T, H, W, **kwargs)
+            self.cache[_KRT] = mask_bounds
+        return mask_bounds
+    
+    def __call__(self, ray_o, ray_d, coord, depth=None):
+        near, far, mask = super().__call__(ray_o, ray_d, coord, depth)
+        # filter the ray out the xyranges
+        if self.xybounds is not None:
+            pts = ray_o[mask] + ray_d[mask] * near[:, None]
+            mask_xy = (pts[:, 0] > self.xybounds[0])&(pts[:, 1] > self.xybounds[0])&(pts[:, 0] < self.xybounds[1])&(pts[:, 1] < self.xybounds[1])
+            mask[mask] &= mask_xy
+            near = near[mask_xy]
+            far = far[mask_xy]
+        return near, far, mask
+    
+class MeshSampler(AABBSampler):
+    def __init__(self, split, obj_filepath, delta=0.05, **kwargs):
+        print('Load mesh from: ', obj_filepath)
+        mesh = pywavefront.Wavefront(obj_filepath, collect_faces=True)
+        vertices = np.array(mesh.vertices).astype(np.float32)
+        bounds = get_bounds(vertices, delta)
+        super().__init__(split, bounds=bounds, **kwargs)
+
+
+    def mask(self, K, R, T, H, W, **kwargs):
+        mask = super().mask(K, R, T, H, W, **kwargs)
+        return mask
+
+    def __call__(self, ray_o, ray_d, coord, depth=None):
+        near, far, mask = super().__call__(ray_o, ray_d, coord, depth)
+        return near, far, mask
+
 class CylinderSampler(BaseSampler):
     cache = {}
     def __init__(self, center, split, zranges, radius=(3., 7), **cfg):
@@ -455,23 +513,23 @@ class CylinderSampler(BaseSampler):
 
     @staticmethod
     def get_near_far_cylinder(ray_o, ray_d, viewdirs, radius):
-        # 计算与圆柱的交点
+        # Calculate the intersection with the cylinder
         radius0, radius1 = radius
-        # 1. 计算xy方向的单位向量
+        # 1. Compute the unit vector in the xy direction
         ray_d_xy = ray_d[..., :2]
         viewdirs_xy = ray_d_xy/np.linalg.norm(ray_d_xy, axis=-1, keepdims=True)
-        # d1: 相机中心到原点的向量在射线方向的投影
+        # d1: The projection of the vector from the center of the camera to the origin in the ray direction
         d1 = - (viewdirs_xy * ray_o[..., :2]).sum(axis=-1)
-        # d0_dir: 直线 x=0, y=0到射线的距离
+        # d0_dir: Distance from the line x=0, y=0 to the ray
         d_0_dir = np.sqrt(np.maximum((ray_o[..., :2]*ray_o[..., :2]).sum(axis=-1) - d1 * d1, 1e-5))
-        # 计算与内圆交点：确保到射线的距离小于半径
+        # Calculate the point of intersection with the inner circle: make sure the distance to the ray is less than the radius
         # assert d_0_dir.max() < radius0, d_0_dir.max()
-        # 计算与圆的第二个交点
+        # Calculate the second point of intersection with the circle
         dr0 = np.sqrt(np.clip(radius0*radius0 - d_0_dir*d_0_dir, 0., 1e5)) + d1
         dr1 = np.sqrt(np.clip(radius1*radius1 - d_0_dir*d_0_dir, 0., 1e5)) + d1
-        # 现在这个距离是二维的，需要变成三维的
-        # 由于计算的是时间t，所以这个除的时候，直接除以归一化xy平面的就好
-        # 得到的值也是绝对时间
+        # Now this distance is two-dimensional and needs to be made three-dimensional
+        # Since the calculation is at time t, this division is done by dividing directly by the normalized xy plane of
+        # The value obtained is also the absolute time
         norm_xy = np.linalg.norm(viewdirs[..., :2], axis=-1)
         dr0, dr1 = dr0/norm_xy, dr1/norm_xy
         return dr0, dr1
@@ -479,7 +537,7 @@ class CylinderSampler(BaseSampler):
     def __call__(self, ray_o, ray_d, coord):
         near, far, mask = self.near[coord[:, 0], coord[:, 1]], self.far[coord[:, 0], coord[:, 1]], self._mask[coord[:, 0], coord[:, 1]]
         near, far = near[mask], far[mask]
-        # 注意，这里都是当作背景来处理的，所以mask_at_box一定是全是True的
+        # Note that it's all treated as background here, so mask_at_box must be all True
         return near, far, mask
 
 def create_cameras_mean(cameras, camera_args):
@@ -488,11 +546,14 @@ def create_cameras_mean(cameras, camera_args):
     Kold = np.stack([d['K'] for d in cameras])
     Cold = - np.einsum('bmn,bnp->bmp', Rold.transpose(0, 2, 1), Told)
     center = Cold.mean(axis=0, keepdims=True)
+    if 'center' in camera_args.keys():
+        cexy = np.array(camera_args['center']).reshape(1, 2, 1)
+        center[0, :2] = cexy
     radius = np.linalg.norm(Cold - center, axis=1).mean()
     zmean = Rold[:, 2, 2].mean()
     xynorm = np.sqrt(1. - zmean**2)
     thetas = np.linspace(0., 2*np.pi, camera_args['allstep'])
-    # 计算第一个相机对应的theta
+    # Calculate the theta corresponding to the first camera
     dir0 = Cold[0] - center[0]
     dir0[2, 0] = 0.
     dir0 = dir0 / np.linalg.norm(dir0)
@@ -514,7 +575,7 @@ def create_cameras_mean(cameras, camera_args):
     K = Kold.mean(axis=0, keepdims=True).repeat(Tnew.shape[0], 0)
     return K, Rnew, Tnew
 
-def create_center_radius(center, radius=5., up='y', ranges=[0, 360, 36], angle_x=0, **kwargs):
+def create_center_radius(center, radius=10., up='y', ranges=[0, 360, 36], angle_x=0, **kwargs):
     center = np.array(center).reshape(1, 3)
     thetas = np.deg2rad(np.linspace(*ranges))
     st = np.sin(thetas)

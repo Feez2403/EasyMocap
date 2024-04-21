@@ -16,9 +16,9 @@ from easymocap.mytools import Timer
 index = Config.load('config/render_index.yml', [])
 
 def vis(cfg):
-    # 读入模型
+    # input model
     body_model = load_object_from_cmd(args.model, [])
-    # # 读入参数
+    # # input parameter
     results = load_object(cfg.result_module, cfg.result_args, body_model=body_model)
     inputs = load_object(cfg.input_module, cfg.input_args)
     outputs = load_object(cfg.output_module, cfg.output_args)
