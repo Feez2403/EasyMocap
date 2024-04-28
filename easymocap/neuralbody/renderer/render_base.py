@@ -5,6 +5,7 @@ import torch
 import time
 import json
 from ..model.base import augment_z_vals, concat
+from mesh_renderer import RasterCompose
 
 _time_ = 0
 def tic():
@@ -91,6 +92,7 @@ class BaseRenderer(nn.Module):
         self.render_layer = render_layer
         if use_canonical:
             self.net.use_canonical = use_canonical
+        #self.mesh_composer = RasterCompose()
     
     def forward_any(self, net, data, meta, bkgd):
         # give network and data, return the corresponding output
@@ -292,6 +294,7 @@ class BaseRenderer(nn.Module):
                 'raw_alpha': occupancy}
             blank_output['raw_rgb'] = blank_output['rgb']
             ret = raw2outputs(blank_output, z_vals_blank, ray_d, bkgd)
+            print("ret_all == 0")
             return ret
         raw_concat = concat(ret_all, dim=1, unsqueeze=False)
         z_vals = raw_concat.pop('z_vals')
@@ -365,6 +368,29 @@ class BaseRenderer(nn.Module):
                 batch['rgb'][0, idx] = rand_bkgd
             else:
                 batch['rgb'][0, idx] = 0.
+        #print("split: ", self.split)
+        #if self.split == 'test':
+        #    cam = batch['meta']['camera']
+        #    K,R,T = cam['K'][0], cam['R'][0], cam['T'][0]
+        #    print('K', K)
+        #    print('R', R)
+        #    print('T', T)
+        #    
+        #    H, W = batch['meta']['H'][0], batch['meta']['W'][0]
+        #    print('H', H)
+        #    print('W', W)
+        #    print('results', results.keys())
+        #    print('results rgb_map', results['rgb_map'].shape)
+        #    img = results['rgb_map'][0].detach().cpu().numpy().reshape(H, W, 3)
+        #    
+        #    K = K.detach().cpu().numpy()
+        #    R = R.detach().cpu().numpy()
+        #    T = T.detach().cpu().numpy()
+        #    H = H.detach().cpu().numpy()
+        #    W = W.detach().cpu().numpy()
+        #    
+        #    img_ = self.mesh_composer.render(K, R, T, H, W, z_buffer=None, image=img)
+        #    results['rgb_map'] = torch.tensor(img_, device=device).unsqueeze(0)
         return results
 
 class RendererWithBkgd(BaseRenderer):

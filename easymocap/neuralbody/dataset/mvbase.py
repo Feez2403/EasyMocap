@@ -551,6 +551,7 @@ class BaseDataset(BaseBase):
             'time': info.get('time', info['nf']),
             'sub': info['sub'],
             'keys': list(objects.keys()),
+            'camera': info['camera']
         }
         if self.check:
             meta['img'] = img
@@ -825,7 +826,7 @@ class BaseNovelPose(BaseBase):
             'index': index,
             'nframe': info['nf'], 'nview': info['nv'],
             'sub': info['sub'],
-            'keys': list(objects.keys()),
+            'keys': list(objects.keys())
         }
         if self.check:
             meta['img'] = img
