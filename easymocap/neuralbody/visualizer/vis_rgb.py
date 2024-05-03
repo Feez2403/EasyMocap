@@ -230,7 +230,8 @@ class Visualizer:
             maxs = output[key].shape[0]
             res[coord[:maxs, 0], coord[:maxs, 1]] = output[key]
             pred = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
-            pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
+            # Gray output 
+            #pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET) 
             outputs[key] = pred
         depth_min, depth_max = self.depth_range
         for key in ['depth_map']:
@@ -240,7 +241,8 @@ class Visualizer:
             val = (output[key] - depth_min)/(depth_max-depth_min)
             res[coord[:maxs, 0], coord[:maxs, 1]] = val
             pred = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
-            pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
+            # Gray output 
+            #pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
             outputs[key] = pred
         for key in ['raw_depth']:
             if key not in self.keys:continue

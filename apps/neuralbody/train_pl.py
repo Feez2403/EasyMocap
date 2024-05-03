@@ -173,6 +173,16 @@ def test(cfg):
         dataset = load_object(cfg.data_val_module, cfg.data_val_args)
     elif cfg.split in ['demo', 'canonical', 'novelposes']:
         dataset = load_object(cfg['data_{}_module'.format(cfg.split)], cfg['data_{}_args'.format(cfg.split)])
+        import json
+        print('Save cameras to {}'.format(vis_out_dir))
+        with open(join(vis_out_dir,'cameras.json'), "w") as f:
+            ouput_dict = {}
+            for i in range(len(dataset)):
+                index = dataset.infos[i]['index']
+                camera = dataset.infos[i]['camera']
+                ouput_dict[index] = {v : camera[v].tolist() for v in camera}
+            json.dump(ouput_dict, f, indent=4)                  
+                
     elif cfg.split == 'trainvis':
         dataset = model.train_dataset
         dataset.sample_args.nrays *= 16
