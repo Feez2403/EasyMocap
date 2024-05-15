@@ -714,11 +714,15 @@ class BaseDatasetDemo(BaseDataset):
             K[:, 0, 2] = camera_args.W / 2
             K[:, 1, 2] = camera_args.H / 2
         elif camera_args.method == 'static':
-            assert len(self.subs) == 1, "Only support monocular videos"
             camera = self.cameras[self.subs[0]]
             K = camera['K'][None]
             R = camera['R'][None]
             T = camera['T'][None]
+            if "allstep" in camera_args and camera_args.allstep > 1:
+                K = K.repeat(camera_args.allstep, 0)
+                R = R.repeat(camera_args.allstep, 0)
+                T = T.repeat(camera_args.allstep, 0)
+            
         elif camera_args.method == 'line':
             for key, camera in self.cameras.items():
                 R = camera['R']

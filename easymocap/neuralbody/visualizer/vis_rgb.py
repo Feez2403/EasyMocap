@@ -12,6 +12,7 @@ import os
 from os.path import join
 from ..dataset.utils_reader import palette
 from mesh_renderer import RasterCompose
+from PIL import Image
 
 colors_rgb = [
     (1, 1, 1),
@@ -170,6 +171,12 @@ class Visualizer:
             pred = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
             pred = pred[..., [2, 1, 0]]
             outputs[key] = pred
+            if key == 'rgb_map':
+                alpha = np.zeros((H, W, 1))
+                maxs = output["acc_map"].shape[0]
+                alpha[coord[:maxs, 0], coord[:maxs, 1]] = output["acc_map"][:, None]
+                alpha = (np.clip(alpha, 0, 1.) * 255).astype(np.uint8)
+                outputs["rgba_map"] = np.concatenate([outputs["rgb_map"][...,[2,1,0]], alpha], axis=-1)
         if 'human_0' in keys:
             key_index_offset = keys.index('human_0') + 1
         else:
@@ -291,11 +298,15 @@ class Visualizer:
         if self.concat == 'none':
             for key, pred in outputs.items():
                 outname = join(self.data_dir, key+'_'+basename)
-                if key in ['raw_depth', 'instance_map']:
+                if key in ['rgba_map']:
                     outname += '.png'
+                    Image.fromarray(pred, mode = "RGBA").save(outname)
                 else:
-                    outname += '.jpg'
-                cv2.imwrite(outname, pred)
+                    if key in ['raw_depth', 'instance_map']:
+                        outname += '.png'
+                    else:
+                        outname += '.jpg'
+                    cv2.imwrite(outname, pred)
             return 0
         elif self.concat == 'hstack':
             outputs = np.hstack(list(outputs.values()))

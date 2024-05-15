@@ -175,6 +175,7 @@ def test(cfg):
         dataset = load_object(cfg['data_{}_module'.format(cfg.split)], cfg['data_{}_args'.format(cfg.split)])
         import json
         print('Save cameras to {}'.format(vis_out_dir))
+        os.makedirs(vis_out_dir, exist_ok=True)
         with open(join(vis_out_dir,'cameras.json'), "w") as f:
             ouput_dict = {}
             for i in range(len(dataset)):
