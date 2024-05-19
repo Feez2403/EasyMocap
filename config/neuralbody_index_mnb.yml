@@ -364,3 +364,22 @@ wildtrack:
     - [0, 1, 2, 3, 7, 9, 10]
     - network_args.models.allhuman.pids
     - [0, 1, 2, 3, 7, 9, 10]
+
+
+wildtrack_relight:
+  comment: "[mvmp] Neuralbody + background in the wild + relight"
+  data: config/neuralbody/dataset/demo_wildtrack_relight.yml
+  model: config/neuralbody/network/comp_neuralbody_relight+back+wildtrack.yml
+  base: config/neuralbody/utils/train_base.yml
+  trainer: config/neuralbody/utils/trainer_wildtrack_relight.yml
+  visualizer: config/neuralbody/utils/vis_multi_relight.yml
+  opts_dict:
+    data_share_args:
+      sample_args:
+        nrays: 6144
+      ranges: [0, 300, 1]
+  opts:
+    - data_share_args.object_args.allhuman.pids
+    - [0, 1, 2, 3, 7, 9, 10]
+    - network_args.models.allhuman.pids
+    - [0, 1, 2, 3, 7, 9, 10]

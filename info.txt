@@ -9,3 +9,6 @@ python apps/neuralbody/demo.py --mode wildtrack data/wildtrack --gpus 0, --demo
 
 # tonemapped
 python apps/neuralbody/demo.py --mode wildtrack data/wildtrack_tonemaped --gpus 0,
+
+# remapped (linear color mapping)
+python apps/neuralbody/demo.py --mode wildtrack data/wildtrack_remaped --gpus 0, --demo

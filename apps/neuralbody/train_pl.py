@@ -93,14 +93,21 @@ class plwrapper(pl.LightningModule):
 def train(cfg):
     model = plwrapper(cfg)
     if cfg.resume and os.path.exists(join(cfg.trained_model_dir, 'last.ckpt')):
+        print('Resume from {}'.format(join(cfg.trained_model_dir, 'last.ckpt')))
         resume_from_checkpoint = join(cfg.trained_model_dir, 'last.ckpt')
+        ckpt_epoch = load_ckpt(model.network, resume_from_checkpoint) 
+        
+            
+            
     else:
+        print('Start from scratch')
         resume_from_checkpoint = None
         if os.path.exists(cfg.recorder_args.log_dir):
             # os.removedirs(cfg.recorder_args.log_dir)
             pass
         os.makedirs(cfg.recorder_args.log_dir, exist_ok=True)
         print(cfg, file=open(join(cfg.recorder_args.log_dir, 'exp.yml'), 'w'))
+        ckpt_epoch = -1
     logger = TensorBoardLogger(save_dir=cfg.recorder_args.log_dir, name=cfg.exp)
     ckpt_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
@@ -122,12 +129,14 @@ def train(cfg):
     trainer = pl.Trainer(
         gpus=len(cfg.gpus), 
         logger=logger,
-        resume_from_checkpoint=resume_from_checkpoint,
+        #resume_from_checkpoint=resume_from_checkpoint,
         callbacks=[ckpt_callback, lr_monitor],
         max_epochs=cfg.train.epoch,
         # profiler='simple',
         **extra_args
     )
+    print("Current epoch: {}".format(ckpt_epoch))
+    trainer.fit_loop.epoch_progress.current.completed = ckpt_epoch
     trainer.fit(model)
 
 def load_ckpt(model, ckpt_path, model_name='network'):
@@ -213,8 +222,13 @@ def parse(args, cfg):
     if not args.slurm:
         os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
     assert cfg.exp != "", "Please set the experiement name"
+    
+    cfg.network_args.relight = "relight" in cfg.exp
+    print(cfg.network_args.relight, cfg.exp)
+    
     cfg.trained_model_dir = join('neuralbody', cfg.exp, 'model')
     os.makedirs(cfg.trained_model_dir, exist_ok=True)
+    
     cfg.recorder_args.log_dir = join('neuralbody', cfg.exp, 'record')
     os.makedirs(cfg.recorder_args.log_dir, exist_ok=True)
     exp = 'vis'

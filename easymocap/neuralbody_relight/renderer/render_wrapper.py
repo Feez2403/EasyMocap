@@ -25,6 +25,12 @@ class RenderWrapper(nn.Module):
     def forward(self, batch):
         ret = self.renderer(batch)
         #print(ret.keys())
+        for key, val in ret.items():
+            if isinstance(val, torch.Tensor):
+                print("RenderWrapper: ", key, val.shape)
+            else:
+                print("RenderWrapper: ", key, type(val))
+        
         loss = 0
         scalar_stats = {}
         for key, func in self.loss.items():

@@ -166,6 +166,8 @@ class BaseRenderer(nn.Module):
     def batch_forward(self, batch, viewdir, start, end, bkgd):
         ray_o = batch['ray_o'][0, start:end, None]
         ray_d = batch['ray_d'][0, start:end, None]
+        
+        print ("ray_o: ", ray_o.shape)
         viewdirs = batch['viewdirs'][0, start:end, None].expand(-1, 1, -1)
         keys_all = self.net.keys.copy()
         object_keys = [d[0] for d in batch['meta']['object_keys']]

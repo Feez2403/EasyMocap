@@ -1,0 +1,25 @@
+parents:
+  - config/neuralbody/dataset/neuralbody_relight_wildtrack.yml
+
+data_demo_args:
+  split: demo
+  image_args:
+    scale: 1
+  camera_args:
+    method: mean
+    H: 1080
+    W: 1920
+    allstep: 800
+    loop: True
+  object_args:
+    ground:
+      args:
+        xybounds: [-12, 12]
+  demo_args:
+    mode: scripts
+    stages:
+      start:
+        frame: [0, 300, 1]
+        view: [0, 300, 1]
+        object_keys: [ground, human_0, human_1, human_2, human_3, human_7, human_9, human_10]
+      
