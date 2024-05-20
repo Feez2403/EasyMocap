@@ -8,7 +8,9 @@
 import torch
 import torch.nn as nn
 from ...config import load_object
+from .render_relight import RelightModule
 
+# train_renderer
 class RenderWrapper(nn.Module):
     def __init__(self, net, renderer_module, renderer_args, loss, loss_reg={}):
         super().__init__()
@@ -21,15 +23,16 @@ class RenderWrapper(nn.Module):
         loss_reg = {key:load_object(val.module, val.args) for key, val in loss_reg.items()}
         self.loss = nn.ModuleDict(loss)
         self.loss_reg = nn.ModuleDict(loss_reg)
+        
+        #print("RenderWrapper: ", net.models.keys())
+        self.relight = RelightModule(net.models.keys())
 
     def forward(self, batch):
         ret = self.renderer(batch)
         #print(ret.keys())
-        for key, val in ret.items():
-            if isinstance(val, torch.Tensor):
-                print("RenderWrapper: ", key, val.shape)
-            else:
-                print("RenderWrapper: ", key, type(val))
+    
+        ret.update(batch)
+        rel_ret = self.relight(ret)
         
         loss = 0
         scalar_stats = {}

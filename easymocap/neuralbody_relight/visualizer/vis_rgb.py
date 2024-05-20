@@ -11,7 +11,7 @@ from termcolor import colored
 import os
 from os.path import join
 from ..dataset.utils_reader import palette
-from mesh_renderer import RasterCompose
+#from mesh_renderer import RasterCompose
 from PIL import Image
 
 colors_rgb = [
@@ -105,7 +105,7 @@ class Visualizer:
         self.back_col = np.array(back_col).reshape(1, 1, 3)
         self.format = format
         self.subs = subs
-        self.raster_compose = RasterCompose()
+        #self.raster_compose = RasterCompose()
 
     @staticmethod
     def to_numpy(output):
@@ -259,41 +259,41 @@ class Visualizer:
             res[coord[:maxs, 0], coord[:maxs, 1]] = val
             outputs[key] = res
             
-        for key in ['with_bg']:
-            if key not in self.keys:continue
-            print('rendering', key)
-            if 'depth_map' not in output.keys():
-                print('depth_map not found')
-                continue
-            if 'rgb_map' not in output.keys():
-                print('rgb_map not found')
-                continue
-            
-            res = np.zeros((H, W, 3))
-            maxs = output['rgb_map'].shape[0]
-            res[coord[:maxs, 0], coord[:maxs, 1]] = output['rgb_map']
-            res = res[..., ::-1] # BGR to RGB
-            
-            z_buffer = np.ones((H, W))*np.inf
-            maxs = output['depth_map'].shape[0]
-            z_buffer[coord[:maxs, 0], coord[:maxs, 1]] = output['depth_map']
-            
-            acc = np.zeros((H, W))
-            maxs = output['acc_map'].shape[0]
-            acc[coord[:maxs, 0], coord[:maxs, 1]] = output['acc_map']
-            acc = np.clip(acc, 0, 1.)
-            res[acc < 0.5] = self.back_col[0]
-            z_buffer[acc < 0.5] = np.inf
-            print(z_buffer[z_buffer<np.inf].min(), z_buffer[z_buffer<np.inf].max())
-            self.raster_compose.render(K, R, T, H, W, z_buffer, res)
-            res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
-            outputs[key] = res
-            
-            depth_min, depth_max = (2, 25.)
-            val = (z_buffer - depth_min)/(depth_max-depth_min)
-            pred = (np.clip(val, 0, 1.) * 255).astype(np.uint8)
-            pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
-            outputs[key + "_zbuffer"] = pred
+        #for key in ['with_bg']:
+        #    if key not in self.keys:continue
+        #    print('rendering', key)
+        #    if 'depth_map' not in output.keys():
+        #        print('depth_map not found')
+        #        continue
+        #    if 'rgb_map' not in output.keys():
+        #        print('rgb_map not found')
+        #        continue
+        #    
+        #    res = np.zeros((H, W, 3))
+        #    maxs = output['rgb_map'].shape[0]
+        #    res[coord[:maxs, 0], coord[:maxs, 1]] = output['rgb_map']
+        #    res = res[..., ::-1] # BGR to RGB
+        #    
+        #    z_buffer = np.ones((H, W))*np.inf
+        #    maxs = output['depth_map'].shape[0]
+        #    z_buffer[coord[:maxs, 0], coord[:maxs, 1]] = output['depth_map']
+        #    
+        #    acc = np.zeros((H, W))
+        #    maxs = output['acc_map'].shape[0]
+        #    acc[coord[:maxs, 0], coord[:maxs, 1]] = output['acc_map']
+        #    acc = np.clip(acc, 0, 1.)
+        #    res[acc < 0.5] = self.back_col[0]
+        #    z_buffer[acc < 0.5] = np.inf
+        #    print(z_buffer[z_buffer<np.inf].min(), z_buffer[z_buffer<np.inf].max())
+        #    self.raster_compose.render(K, R, T, H, W, z_buffer, res)
+        #    res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
+        #    outputs[key] = res
+        #    
+        #    depth_min, depth_max = (2, 25.)
+        #    val = (z_buffer - depth_min)/(depth_max-depth_min)
+        #    pred = (np.clip(val, 0, 1.) * 255).astype(np.uint8)
+        #    pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
+        #    outputs[key + "_zbuffer"] = pred
         
         if self.concat == 'none':
             for key, pred in outputs.items():

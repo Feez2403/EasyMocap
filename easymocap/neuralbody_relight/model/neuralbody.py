@@ -259,7 +259,8 @@ class Network(Nerf):
         valid = (ppts>sparse_feature['sp_input']['min_xyz'])&(ppts<sparse_feature['sp_input']['max_xyz'])
         valid = valid.all(dim=-1)
         if valid.sum() == 0:
-            # no points inside the bbox     
+            # no points inside the bbox
+            print('self.current : No points inside the bbox')  
             outputs = {
                 'occupancy': torch.zeros((*wpts.shape[:-1], 1), device=wpts.device, dtype=wpts.dtype)
             }

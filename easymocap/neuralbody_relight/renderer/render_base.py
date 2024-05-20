@@ -86,6 +86,7 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
 
     return results
 
+
 class BaseRenderer(nn.Module):
     def __init__(self, net, chunk, white_bkgd, use_occupancy, N_samples, split,
         
@@ -101,40 +102,7 @@ class BaseRenderer(nn.Module):
         self.use_canonical = use_canonical
         if use_canonical:
             self.net.use_canonical = use_canonical
-        #self.mesh_composer = RasterCompose()
-    
-    #def forward_any(self, net, data, meta, bkgd):
-    #    # give network and data, return the corresponding output
-    #    raw, z_val_ = [], []
-    #    ray_o = data['ray_o'][0].unsqueeze(1)
-    #    ray_d = data['ray_d'][0].unsqueeze(1)
-    #    # Sample depth points
-    #    z_steps = torch.linspace(0, 1, self.N_samples, device=ray_o.device).reshape(1, -1)
-    #    for bn in range(0, ray_o.shape[0], self.chunk):
-    #        start, end = bn, bn + self.chunk
-    #        # first sample points
-    #        near, far = [data[key][0, start:end][:, None] for key in ['near', 'far']]
-    #        if False:
-    #            # z_vals: (nrays, N_samples)
-    #            z_vals = near * (1-z_steps) + far * z_steps
-    #            z_vals = z_vals.unsqueeze(2)
-    #            if self.split == 'train':
-    #                z_vals = augment_z_vals(z_vals)
-    #            pts = ray_o[mask] + ray_d[mask] * z_vals
-    #            viewdir = viewdirs[mask].expand(-1, pts.shape[1], -1)
-    #            raw_output = model.calculate_density_color(pts, viewdir)
-    #        else:
-    #            z_vals, pts, raw_output = net.calculate_density_color_from_ray(
-    #                ray_o[start:end], ray_d[start:end], near, far, self.split)
-    #        # directly render
-    #        if bkgd.shape[1] != 1:
-    #            bkgd_ = bkgd[:, start:end]
-    #        else:
-    #            bkgd_ = bkgd
-    #        results = raw2outputs(
-    #            raw_output, z_vals[..., 0], ray_d[start:end], bkgd_)
-    #        raw.append(results)
-    #    return raw
+        
 
     def compose(self, retlist, mask=None, bkgd=None):
         res = {}
@@ -156,27 +124,11 @@ class BaseRenderer(nn.Module):
             res[key] = val
         return res
 
-    #def forward_single(self, batch, bkgd):
-    #    keys = [d[0] for d in batch['meta']['keys']]
-    #    assert len(keys) == 1, 'Only support one key'
-    #    key = keys[0]
-    #    model = self.net.model(key)
-    #    model.clear_cache()
-    #    data = model.before(batch, key)
-    #    # get the background
-    #    bkgd_ = bkgd
-    #    if bkgd is not None and bkgd.shape[0] > 1:
-    #        bkgd_ = bkgd[data['mask'][0]][None] # (1, nValid, 3)
-    #    retlist = self.forward_any(model, data, batch['meta'], bkgd_)
-    #    res = self.compose(retlist, data['mask'][0], bkgd)
-    #    res['keys'] = keys
-    #    return res
-
     def batch_forward(self, batch, viewdir, start, end, bkgd):
         ray_o = batch['ray_o'][0, start:end, None]
         ray_d = batch['ray_d'][0, start:end, None]
-        print(f"ray_o.shape: {ray_o.shape}")
-        print(f"ray_d.shape: {ray_d.shape}")
+        #print(f"ray_o.shape: {ray_o.shape}")
+        #print(f"ray_d.shape: {ray_d.shape}")
         n_pixel = ray_o.shape[0]
         
         
@@ -210,33 +162,33 @@ class BaseRenderer(nn.Module):
             end_ = mask[:end].sum()
             near, far = [batch[key+'_'+nearfar][0, start_:end_][:, None] for nearfar in ['near', 'far']]
             mask = mask[start:end]
-            print(f"mask.shape: {mask.shape}")
+            #print(f"mask.shape: {mask.shape}")
             if mask.sum() < 1:
                 # print('Skip {} [{}, {}]'.format(key, start, end))
                 continue
-            print(f"ray_o.shape: {ray_o[mask].shape}")
-            print(f"ray_d.shape: {ray_d[mask].shape}")
-            print(f"near.shape: {near.shape}")
-            print(f"far.shape: {far.shape}")
+            #print(f"ray_o.shape: {ray_o[mask].shape}")
+            #print(f"ray_d.shape: {ray_d[mask].shape}")
+            #print(f"near.shape: {near.shape}")
+            #print(f"far.shape: {far.shape}")
             z_vals, pts, raw_output = model.calculate_density_from_ray(
                 ray_o[mask], ray_d[mask], near, far, self.split)
             
             #raw_output = {'occupancy': alpha,'raw_alpha': raw_alpha}
-            print(f"z_vals.shape: {z_vals.shape}")
+            #print(f"z_vals.shape: {z_vals.shape}")
             density = raw_output['density']
             normal = torch.autograd.grad(density, pts, torch.ones_like(density), retain_graph=True)[0]
             raw_output['normal'] = normal
-            print(f"raw_output.keys: {raw_output.keys()}") # "occupancy", "raw_alpha", "density", "normal
-            print(f"raw_output['normal'].shape: {raw_output['normal'].shape}")
-            print(f"raw_output['density'].shape: {raw_output['density'].shape}")
+            #print(f"raw_output.keys: {raw_output.keys()}") # "occupancy", "raw_alpha", "density", "normal
+            #print(f"raw_output['normal'].shape: {raw_output['normal'].shape}")
+            #print(f"raw_output['density'].shape: {raw_output['density'].shape}")
             raw_output['z_vals'] = z_vals[..., 0]
-            print(f"raw_output['z_vals'].shape: {raw_output['z_vals'].shape}")
+            #print(f"raw_output['z_vals'].shape: {raw_output['z_vals'].shape}")
             # add instance
             instance_ = torch.zeros((*pts.shape[:-1], len(keys_all)), 
                 dtype=pts.dtype, device=pts.device)
             instance_[..., keys_all.index(key)] = 1.
             raw_output['instance'] = instance_
-            print(f"raw_output['instance'].shape: {raw_output['instance'].shape}")
+            #print(f"raw_output['instance'].shape: {raw_output['instance'].shape}")
             raw_padding = {}
             for key_out, val in raw_output.items():
                 if len(val.shape) == 1: # for traj
@@ -269,37 +221,37 @@ class BaseRenderer(nn.Module):
         for key, val in raw_concat.items():
             val_sorted = val[ind_0, indices]
             raw_sorted[key] = val_sorted
-            print(f"raw_sorted[{key}].shape: {raw_sorted[key].shape}")
+            #print(f"raw_sorted[{key}].shape: {raw_sorted[key].shape}")
         
         
         ret = raw2outputs(raw_sorted, z_vals_sorted, ray_d, bkgd)
         
-        for key, val in ret.items():
-            print(f"ret[{key}].shape: {ret[key].shape}")
+        #for key, val in ret.items():
+        #    print(f"ret[{key}].shape: {ret[key].shape}")
         
         acc = ret['acc_map'] # (N_rays)
         depth = ret['depth_map'] # (N_rays)
-        print (f"acc.shape: {acc.shape}")
-        print (f"depth.shape: {depth.shape}")
-        print (f"ray_d.shape: {ray_d.shape}")
-        print (f"ray_o.shape: {ray_o.shape}")   
+        #print (f"acc.shape: {acc.shape}")
+        #print (f"depth.shape: {depth.shape}")
+        #print (f"ray_d.shape: {ray_d.shape}")
+        #print (f"ray_o.shape: {ray_o.shape}")   
         surf = ray_o + ray_d * depth.reshape(-1,1,1) # (N_rays,1, 3) xyz of the surface
         ret['normal_map'] = -torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
         normal = ret['normal_map']
-        print(f"normal.shape: {normal.shape}")
+        #print(f"normal.shape: {normal.shape}")
         with torch.no_grad():
             light_xyz, _ = gen_light_xyz(16,32)
             
             light_xyz = torch.from_numpy(light_xyz).float().to(ray_d.device).reshape(1,-1,3) # (1, N_lights, 3)
             n_lights = light_xyz.shape[1]
-            print(f"n_lights: {n_lights}")
+            #print(f"n_lights: {n_lights}")
             lvis_hit = torch.zeros(surf.shape[0],n_lights,device=surf.device)
             lpix_chunk = 64
             for i in range(0,n_lights,lpix_chunk):
                 end_i = min(n_lights,i+lpix_chunk)
                 lxyz_chunk = light_xyz[:,i:end_i] # (1, lpix_chunk, 3)
-                print(f"lxyz_chunk.shape: {lxyz_chunk.shape}")
-                print(f"surf.shape: {surf.shape}")
+                #print(f"lxyz_chunk.shape: {lxyz_chunk.shape}")
+                #print(f"surf.shape: {surf.shape}")
                 surf2light = lxyz_chunk - surf # (N_rays, lpix_chunk, 3)
                 surf2light = torch.nn.functional.normalize(surf2light, p=2, dim=-1)
                 surf2lightflat = surf2light.reshape(-1,3)
@@ -314,7 +266,7 @@ class BaseRenderer(nn.Module):
                 surfflat = surfrep.reshape(-1,3)
                 front_surf = surfflat[front_lit, :].reshape(-1,1,3) # ray origin ( N_rays * lpix_chunk,1, 3)
                 front_surf2light = surf2lightflat[front_lit, :].reshape(-1,1,3) # ray direction ( N_rays * lpix_chunk,1, 3)
-                lvis_far = torch.ones(front_surf.shape[:2],device=surf.device) * 20 # lvis_far = 20 (N_rays * lpix_chunk,1)
+                lvis_far = torch.ones(front_surf.shape[:2],device=surf.device) * 2.0 # lvis_far = 20 (N_rays * lpix_chunk,1)
                 lvis_near = torch.ones(front_surf.shape[:2],device=surf.device) * 0.0 # lvis_near = 0.0 (N_rays * lpix_chunk,1)
                 
                 ret_all = []
@@ -327,13 +279,14 @@ class BaseRenderer(nn.Module):
                     else:
                         model = self.net.model(key)
                         model.current = key
-                    print(f"key: {key}")
+                    
+                    
+                    #print(f"key: {key}")
                     lvis_z, lvis_pts, lvis_raw_output = model.calculate_density_from_ray(
                         front_surf, front_surf2light, lvis_near, lvis_far, self.split)
-                    print(f"lvis_z.shape: {lvis_z.shape}")
-                    print(f"lvis_pts.shape: {lvis_pts.shape}")
-                    print(f"lvis_raw_output.keys: {lvis_raw_output.keys()}")
-                    lvis_sample = lvis_pts.shape[0]
+                    #print(f"lvis_z.shape: {lvis_z.shape}")
+                    #print(f"lvis_pts.shape: {lvis_pts.shape}")
+                    #print(f"lvis_raw_output.keys: {lvis_raw_output.keys()}")
                     lvis_raw_output['z_vals'] = lvis_z[..., 0]
                                         
                     ret_all.append(lvis_raw_output)
@@ -352,7 +305,7 @@ class BaseRenderer(nn.Module):
                 for key, val in raw_concat.items():
                     val_sorted = val[ind_0, indices]
                     raw_sorted[key] = val_sorted
-                    print(f"raw_sorted[{key}].shape: {raw_sorted[key].shape}")
+                    #print(f"raw_sorted[{key}].shape: {raw_sorted[key].shape}")
                 
                 lvis_outputs = raw2outputs(raw_sorted, z_vals_sorted, front_surf2light, bkgd)
 
@@ -372,18 +325,28 @@ class BaseRenderer(nn.Module):
     def forward_multi(self, batch, bkgd):
         keys = [d[0] for d in batch['meta']['keys']]
         # prepare each model
+        latent_features = {}
         res_cache = {}
         for key in self.net.keys:
             model = self.net.model(key)
             model.clear_cache()
         for key in keys:
-            if '@' in key:
-                key0 = key.split('_@')[0]
-                model = self.net.model(key0)
-                model.current = key
-            else:
-                model = self.net.model(key)
+           #if '@' in key:
+           #    key0 = key.split('_@')[0]
+           #    model = self.net.model(key0)
+           #    model.current = key
+           #else:
+            model = self.net.model(key)
             model.before(batch, key)
+            
+            # save the latent features 
+            if "human" in key : 
+                latent_features[key] = model.sparse_feature[key]
+            elif "ground" in key:
+                latent_features[key] = model.cache['embed']
+            elif "background" in key:
+                latent_features[key] = model.cache['embed']
+            
             if key in model.cache.keys():
                 res_cache[key+'_cache'] = model.cache[key]
         viewdir = batch['viewdirs'][0].unsqueeze(1)
@@ -397,6 +360,7 @@ class BaseRenderer(nn.Module):
         # add cache
         res.update(res_cache)
         res['keys'] = keys
+        res['latent_features'] = latent_features
         return res
 
     def forward(self, batch):
@@ -422,3 +386,5 @@ class BaseRenderer(nn.Module):
             else:
                 batch['rgb'][0, idx] = 0.
         return results
+
+

@@ -131,7 +131,7 @@ def train(cfg):
         logger=logger,
         #resume_from_checkpoint=resume_from_checkpoint,
         callbacks=[ckpt_callback, lr_monitor],
-        max_epochs=cfg.train.epoch,
+        max_epochs=cfg.train.epoch+1,
         # profiler='simple',
         **extra_args
     )
@@ -211,7 +211,7 @@ def test(cfg):
 
     trainer = pl.Trainer(
         gpus=len(cfg.gpus), 
-        max_epochs=cfg.train.epoch,
+        max_epochs=cfg.train.epoch +1 ,
         **extra_args
     )
     preds = trainer.predict(model, dataloader)
@@ -223,8 +223,8 @@ def parse(args, cfg):
         os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
     assert cfg.exp != "", "Please set the experiement name"
     
-    cfg.network_args.relight = "relight" in cfg.exp
-    print(cfg.network_args.relight, cfg.exp)
+    cfg.relight = "relight" in cfg.exp
+    print(cfg.relight, cfg.exp)
     
     cfg.trained_model_dir = join('neuralbody', cfg.exp, 'model')
     os.makedirs(cfg.trained_model_dir, exist_ok=True)
