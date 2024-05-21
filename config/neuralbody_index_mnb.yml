@@ -376,7 +376,7 @@ wildtrack_relight:
   opts_dict:
     data_share_args:
       sample_args:
-        nrays: 6144
+        nrays: 1536
       ranges: [0, 300, 1]
   opts:
     - data_share_args.object_args.allhuman.pids

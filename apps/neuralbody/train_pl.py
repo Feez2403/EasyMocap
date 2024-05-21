@@ -131,7 +131,7 @@ def train(cfg):
         logger=logger,
         #resume_from_checkpoint=resume_from_checkpoint,
         callbacks=[ckpt_callback, lr_monitor],
-        max_epochs=cfg.train.epoch+1,
+        max_epochs=cfg.train.epoch,
         # profiler='simple',
         **extra_args
     )
@@ -211,7 +211,7 @@ def test(cfg):
 
     trainer = pl.Trainer(
         gpus=len(cfg.gpus), 
-        max_epochs=cfg.train.epoch +1 ,
+        max_epochs=cfg.train.epoch,
         **extra_args
     )
     preds = trainer.predict(model, dataloader)

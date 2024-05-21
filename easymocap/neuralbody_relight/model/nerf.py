@@ -166,7 +166,45 @@ class Nerf(Base):
         
         return outputs
     
+    def get_feature(self, wpts, latents={}, **kwargs):
+        # Linear mode
+        # wpts: (..., 3) => (..., 63)
+        # return: (..., 1)
+        
+        #if self.embed_pts_name == 'hash':
+        #    self.embed_pts.bound = self.datas_cache['bounds']
+        # prepare latents
+        latent_embeding = []
+        for key in self.latent_keys:
+            inp = latents[key]
+            if self.cat_dim == 1: # with Conv1d
+                inp = inp[..., None].expand(*inp.shape, wpts.shape[-1])
+            else:
+                inp = inp[None].expand(*wpts.shape[:-1], inp.shape[-1])
+            latent_embeding.append(inp)
+        if len(latent_embeding) > 0:
+            latent_embeding = torch.cat(latent_embeding, dim=self.cat_dim)
+        wpts = self.embed_pts(wpts)
+        extra_density = kwargs.get('extra_density', None)
+        inp = []
+        if self.pts_to_density:
+            inp.append(wpts)
+        if extra_density is not None:
+            inp.append(extra_density)
+        if self.latent_to_density:
+            inp.append(latent_embeding)
+        inp = torch.cat(inp, dim=self.cat_dim)
 
+        h = inp
+        for i, l in enumerate(self.pts_linears):
+            h = self.pts_linears[i](h)
+            h = self.relu(h)
+            if i in self.skips:
+                h = torch.cat([inp, h], self.cat_dim)
+        
+        feature = self.feature_linear(h)
+        return feature
+        
 class MultiLinear(nn.Module):
     def __init__(self, D, W, input_ch, output_ch, skips,
         init_bias=0.693,

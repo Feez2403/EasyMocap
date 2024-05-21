@@ -260,7 +260,7 @@ class Network(Nerf):
         valid = valid.all(dim=-1)
         if valid.sum() == 0:
             # no points inside the bbox
-            print('self.current : No points inside the bbox')  
+            #print('self.current : No points inside the bbox')  
             outputs = {
                 'occupancy': torch.zeros((*wpts.shape[:-1], 1), device=wpts.device, dtype=wpts.dtype)
             }
@@ -280,6 +280,26 @@ class Network(Nerf):
             padding[valid] = val
             outputs_all[key] = padding.view(*wpts.shape[:-1], val.shape[-1])
         return outputs_all
+    
+    def get_feature(self, wpts, sparse_feature):
+        # feature_volume = self.encode_sparse_voxels(sp_input)
+        wpts_flat = wpts.reshape(-1, 3)
+        # convert viewdir to canonical space
+        sparse_feature = self.sparse_feature[self.current]
+        
+        ppts = pts_to_can_pts(wpts_flat, sparse_feature['sp_input'])
+        # keep only points inside the bbox
+        valid_mask = (ppts>sparse_feature['sp_input']['min_xyz'])&(ppts<sparse_feature['sp_input']['max_xyz'])
+        valid_mask = valid_mask.all(dim=-1)
+        ppts_inlier = ppts#[valid_mask]
+        grid_coords = get_grid_coords(ppts_inlier, sparse_feature['sp_input'], self.voxel_size)
+        grid_coords = grid_coords[:, None, None]
+        xyzc_features = interpolate_features(grid_coords, sparse_feature['feature_volume'], self.padding_mode)
+        # calculate density
+        features = super().get_feature(ppts_inlier, latents={'time': sparse_feature['latent_time'][0]}, extra_density=xyzc_features)
+        
+        return features[None], valid_mask
+        
 
 class SparseConvNet(nn.Module):
     def __init__(self, dims=[16, 32, 64, 128]):

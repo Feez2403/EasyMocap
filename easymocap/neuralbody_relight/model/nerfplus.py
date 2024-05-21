@@ -52,3 +52,10 @@ class NeRFT(Nerf):
         latents = {'time': self.cache['embed']}
         return super().calculate_density(wpts, latents, **kwargs)
     
+    def get_feature(self, wpts, sparse_feature):
+        # feature_volume = self.encode_sparse_voxels(sp_input)
+        # calculate density
+        latents = {'time': sparse_feature["latent_time"]}
+        features = super().get_feature(wpts, latents=latents)
+        valid_mask = torch.ones_like(wpts[..., 0], dtype=torch.bool)
+        return features, valid_mask

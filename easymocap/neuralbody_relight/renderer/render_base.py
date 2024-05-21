@@ -7,6 +7,7 @@ import json
 from ..model.base import augment_z_vals, concat
 from ..brdf.renderer import gen_light_xyz
 
+from .render_relight import RelightModule
 
 _time_ = 0
 def tic():
@@ -66,7 +67,9 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     dists = dists * torch.norm(rays_d, dim=-1)
     noise = 0.
     # alpha = raw2alpha(raw[..., -1] + noise, dists)  # [N_rays, N_samples]
-    alpha = 1 - torch.exp(-dists*torch.relu(outputs['density'][..., 0] + noise)) # (N_rays, N_samples_)
+    
+    #alpha = 1 - torch.exp(-dists*torch.relu(outputs['density'][..., 0] + noise)) # (N_rays, N_samples_)
+    alpha = 1 - torch.exp(-dists*torch.relu(outputs['occupancy'][..., 0] + noise)) # (N_rays, N_samples_)
     
     weights = alpha * torch.cumprod(
         torch.cat(
@@ -103,6 +106,8 @@ class BaseRenderer(nn.Module):
         if use_canonical:
             self.net.use_canonical = use_canonical
         
+        #print("RenderWrapper: ", net.models.keys())
+        self.relight = RelightModule(net)
 
     def compose(self, retlist, mask=None, bkgd=None):
         res = {}
@@ -148,7 +153,7 @@ class BaseRenderer(nn.Module):
         # print('render keys: ', keys_all)
         ret_all = []
         for key in object_keys:
-            print(f"key: {key}")
+            #print(f"key: {key}")
             if '@' in key:
                 model = self.net.model(mapkeys[key])
                 model.current = key
@@ -175,7 +180,10 @@ class BaseRenderer(nn.Module):
             
             #raw_output = {'occupancy': alpha,'raw_alpha': raw_alpha}
             #print(f"z_vals.shape: {z_vals.shape}")
-            density = raw_output['density']
+            
+            
+            #density = raw_output['density']
+            density = raw_output['occupancy']
             normal = torch.autograd.grad(density, pts, torch.ones_like(density), retain_graph=True)[0]
             raw_output['normal'] = normal
             #print(f"raw_output.keys: {raw_output.keys()}") # "occupancy", "raw_alpha", "density", "normal
@@ -342,9 +350,9 @@ class BaseRenderer(nn.Module):
             # save the latent features 
             if "human" in key : 
                 latent_features[key] = model.sparse_feature[key]
-            elif "ground" in key:
-                latent_features[key] = model.cache['embed']
             elif "background" in key:
+                latent_features[key] = model.cache['embed']
+            elif "ground" in key:
                 latent_features[key] = model.cache['embed']
             
             if key in model.cache.keys():
@@ -385,6 +393,9 @@ class BaseRenderer(nn.Module):
                 batch['rgb'][0, idx] = rand_bkgd
             else:
                 batch['rgb'][0, idx] = 0.
-        return results
+                
+        return self.relight(batch,results)
 
-
+    def compute_loss(self, batch, ret, **loss_kwargs):
+        loss = self.relight.compute_loss(batch, ret, **loss_kwargs)
+        return loss

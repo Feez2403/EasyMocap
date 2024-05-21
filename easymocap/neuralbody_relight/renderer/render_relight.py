@@ -15,7 +15,7 @@ import os.path as osp
 import numpy as np
 
 class RelightModule(nn.Module):
-    def __init__(self, keys):
+    def __init__(self, net):
         super().__init__()
         self.mlp_chunk= 65536
         self.mlp_width= 256
@@ -67,11 +67,13 @@ class RelightModule(nn.Module):
         self.embedders_dict = {}
         self.net_dict = nn.ModuleDict()
         self.embedder = self._init_embedder()
-        for key in keys:
-            print("RelightModule: ", key)
+        for key in net.models.keys():
+            #print("RelightModule: ", key)
             self.net_dict[key] = self._init_net()
         #self.net = self._init_net()
 
+        self.net = net
+        
         light_xyz, _ = self._gen_lights()
         self.light_xyz = light_xyz.reshape(1,-1,3)
         
@@ -140,7 +142,7 @@ class RelightModule(nn.Module):
         mlp_skip_at = self.mlp_skip_at
         net = nn.ModuleDict()
         
-        net['latent_fc'] = nn.Linear(384, 256)
+        net['latent_fc'] = nn.Linear(256, 256)
         # Normals
         net['normal_mlp'] = MLP(
             feature_dim + 2*self.n_freqs_xyz*3+3, [mlp_width]*mlp_depth, act=['relu']*mlp_depth, skip_at=[mlp_skip_at]
@@ -342,121 +344,123 @@ class RelightModule(nn.Module):
                 return torch.clip(self._light, min=0., max=1e6) + light_noise
 
 
-    def forward(self, batch, mode='train', relight_olat=False, relight_probes=False, albedo_scale=None, albedo_override=None, brdf_z_override=None):
+    def forward(self, batch, result, mode='train', relight_olat=False, relight_probes=False, albedo_scale=None, albedo_override=None, brdf_z_override=None):
         
         xyz_jitter_std = self.xyz_jitter_std
         #id_, hw, rayo, _, rgb, alpha, xyz, normal, lvis, raw_batch = batch
+        #print ("batch: ", batch.keys())
         
-        alpha_map           = batch['acc_map']      # (1, nray)
-        depth_map       = batch['depth_map']    # (1, nray)
-        density_map     = batch['density_map']  # (1, nray, 1)
-        normal_map          = batch['normal_map']   # (1, nray, 3)
-        instance_map    = batch['instance_map'] # (1, nray, nkeys)
-        surf_map             = batch['surf']         # (1, nray, 3)
-        lvis_hit_map            = batch['lvis_hit']     # (1, nray, 512)
-        keys            = batch['keys'] # list of keys
-        latent_features = batch['latent_features'] # dict of features per person
+        
+        
+        alpha_map           = result['acc_map']      # (1, nray)
+        depth_map       = result['depth_map']    # (1, nray)
+        density_map     = result['density_map']  # (1, nray, 1)
+        normal_map          = result['normal_map']   # (1, nray, 3)
+        instance_map    = result['instance_map'] # (1, nray, nkeys)
+        surf_map             = result['surf']         # (1, nray, 3)
+        lvis_hit_map            = result['lvis_hit']     # (1, nray, 512)
+        keys            = result['keys'] # list of keys
+        latent_features = result['latent_features'] # dict of features per person
+        #gt
+        
+        
+        ray_o = batch['ray_o']
+        
+        
+        
+        
+        ret_mask = torch.zeros_like(alpha_map, dtype=torch.bool)
+        
+        pred_rgb = torch.zeros_like(surf_map)
+        pred_normal = torch.zeros_like(normal_map)
+        pred_lvis = torch.zeros_like(lvis_hit_map)
+        pred_albedo = torch.zeros_like(surf_map)
+        pred_brdf = torch.zeros_like(surf_map)
+        
+        pred_normal_jitter = torch.zeros_like(normal_map)
+        pred_lvis_jitter = torch.zeros_like(lvis_hit_map)
+        pred_albedo_jitter = torch.zeros_like(surf_map)
+        pred_brdf_jitter = torch.zeros_like(surf_map)
+        
+        
+        
+        argmax_instances = torch.argmax(instance_map, dim=-1)
         for i, key in enumerate(keys):
-            print("sparse_features.keys(): ", latent_features.keys()) 
-            
             sparse_features = latent_features[key]
             
             if "human" in key:
                 sp_input = sparse_features["sp_input"]
                 feature_volume = sparse_features["feature_volume"]
                 latent_time = sparse_features["latent_time"]
-            elif "ground" in key:
-                latent_time = sparse_features["latent_time"]
+                
             elif "background" in key:
+                #we don't want to relight the background
                 continue
+            elif "ground" in key:
+                sparse_features = {"latent_time":sparse_features}
             
-            instance = instance_map[..., i]
-            mask = instance > 0.01
+            mask = (argmax_instances == i) & (alpha_map > 0)
+            if mask.sum() == 0:
+                #print("mask.sum() == 0 for key: ", key)
+                continue
+            nerf_net = self.net.models[key]
+            
+            #print("key: ", key)
+            
+            # Nx3 to 1xNx3
+            xyz = surf_map[mask].reshape(1, -1, 3)
+            #print ("xyz: ", xyz.shape)
+            rayo = ray_o[mask]#.reshape(1, -1, 3)
+            normal = normal_map[mask].reshape(1, -1, 3)
+            lvis = lvis_hit_map[mask].reshape(1, -1, 512)
+            
+            ret_mask[mask] = True
+            
+            if self.training and xyz_jitter_std > 0.:
+                xyz_noise = torch.normal(mean=0, std=xyz_jitter_std, size=xyz.shape).to(xyz)
+                xyz_jittered = xyz + xyz_noise
+                
+            with torch.no_grad():
+                features, valid_mask = nerf_net.get_feature(xyz, sparse_features)
+                
+                if xyz_noise is not None:
+                    features_jitter, valid_mask_jitter  = nerf_net.get_feature(xyz_jittered, sparse_features)
+                    
             net = self.net_dict[key]
-            
-            xyz = surf_map[mask]
-            
-            
-            
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        features = None
-        features_jitter = None
-        if mode == 'val':
-            self.eval()
-            xyz_jitter_std = 0.
-
-        # jitter
-        if xyz_jitter_std > 0:
-            xyz_noise = torch.normal(mean=0, std=xyz_jitter_std, size=xyz.shape).to(xyz)
-        else:
-            xyz_noise = None
-
-        wpts = xyz
-        sp_input = sparse_features['sp_input']
-        feature_volume = sparse_features['feature_volume']
-        with torch.no_grad():
-            features = self.net['neuralbody'].get_feature(wpts, sp_input, feature_volume)
-            features = features.transpose(1, 2)
+                    
+            features = net['latent_fc'](features).reshape(-1, 256)
             if xyz_noise is not None:
-                features_jitter = self.net['neuralbody'].get_feature(wpts + xyz_noise, sp_input, feature_volume)
-                features_jitter = features_jitter.transpose(1, 2)
+                features_jitter = net['latent_fc'](features_jitter).reshape(-1, 256)
+                
 
-        features = net['latent_fc'](features).reshape(-1, 256)
-        if xyz_noise is not None:
-            features_jitter = net['latent_fc'](features_jitter).reshape(-1, 256)
 
-        surf2light = self._get_ldir(xyz)
-        surf2cam = self._get_vdir(rayo.float(), xyz)
+            surf2light = self._get_ldir(xyz)
+            surf2cam = self._get_vdir(rayo.float(), xyz)
 
-        # normals
-        if self.shape_mode == 'nerf':
-            normal_pred = normal.reshape(-1, 3)
-            normal_jitter = None
-        else:
+       
             normal_pred = self._pred_normal_at(net, xyz, features)
             if xyz_noise is None:
                 normal_jitter = None
             else:
                 normal_jitter = self._pred_normal_at(net, xyz + xyz_noise, features_jitter)
-        normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1, eps=1e-7)
-        if normal_jitter is not None:
-            normal_jitter = torch.nn.functional.normalize(normal_jitter, p=2, dim=-1, eps=1e-7)
+            normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1, eps=1e-7)
+            if normal_jitter is not None:
+                normal_jitter = torch.nn.functional.normalize(normal_jitter, p=2, dim=-1, eps=1e-7)
 
-        # light visibility
-        if self.shape_mode == 'nerf':
-            lvis_pred = torch.clip(lvis.reshape(-1, 512), 1e-7, 1.)
-            lvis_jitter = None
-        else:
             lvis_pred = self._pred_lvis_at(net, xyz, surf2light, features)
             if xyz_noise is None:
                 lvis_jitter = None
             else:
                 lvis_jitter = self._pred_lvis_at(net, xyz + xyz_noise, surf2light, features_jitter)
         
-        # albedo
-        albedo = self._pred_albedo_at(net, xyz, features)
-        if xyz_noise is None:
-            albedo_jitter = None
-        else:
-            albedo_jitter = self._pred_albedo_at(net, xyz + xyz_noise, features_jitter)
+            # albedo
+            albedo = self._pred_albedo_at(net, xyz, features)
+            if xyz_noise is None:
+                albedo_jitter = None
+            else:
+                albedo_jitter = self._pred_albedo_at(net, xyz + xyz_noise, features_jitter)
         
-        if albedo_scale is not None:
-            raise NotImplementedError
 
-        if albedo_override is not None:
-            raise NotImplementedError
-
-        if self.pred_brdf:
             brdf_prop = self._pred_brdf_at(net, xyz, features)
             if xyz_noise is None:
                 brdf_prop_jitter = None
@@ -466,36 +470,68 @@ class RelightModule(nn.Module):
                 brdf_prop = torch.nn.functional.normalize(brdf_prop, p=2, dim=-1, eps=1e-7)
                 if brdf_prop_jitter is not None:
                     brdf_prop_jitter = torch.nn.functional.normalize(brdf_prop_jitter, p=2, dim=-1, eps=1e-7)
-        else:
-            brdf_prop = self._get_default_brdf_at(xyz)
-            brdf_prop_jitter = None
         
-        if brdf_z_override is not None:
-            raise NotImplementedError
-        brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
+        
+            brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
 
-        # rendering
-        rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, relight_olat=relight_olat, relight_probes=relight_probes)
+            # rendering
+            rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, relight_olat=relight_olat, relight_probes=relight_probes)
 
-        pred = {
-            'rgb': rgb_pred, 'normal': normal_pred, 'lvis': lvis_pred,
-            'albedo': albedo, 'brdf': brdf_prop, 'hdr': hdr}
-        if rgb_olat is not None:
-            pred['rgb_olat'] = rgb_olat
-        if rgb_probes is not None:
-            pred['rgb_probes'] = rgb_probes
+                       
+            pred_rgb[mask] = rgb_pred
+            pred_normal[mask] = normal_pred
+            pred_lvis[mask] = lvis_pred
+            pred_albedo[mask] = albedo
+            pred_brdf[mask] = brdf_prop
+            
+            pred_normal_jitter[mask] = normal_jitter
+            pred_lvis_jitter[mask] = lvis_jitter
+            pred_albedo_jitter[mask] = albedo_jitter
+            pred_brdf_jitter[mask] = brdf_prop_jitter
+            
+            
+            #if rgb_olat is not None:
+            #    pred['rgb_olat'] = rgb_olat
+            #if rgb_probes is not None:
+            #    pred['rgb_probes'] = rgb_probes
+        
+        
+        rgb =batch['rgb']
+        alpha = result['acc_map']
+        normal = result['normal_map']
+        lvis = result['lvis_hit']
+        
+        pred_rgb = pred_rgb[ret_mask]
+        pred_normal = pred_normal[ret_mask]
+        pred_lvis = pred_lvis[ret_mask]
+        pred_albedo = pred_albedo[ret_mask]
+        pred_brdf = pred_brdf[ret_mask]
+        
+        pred_normal_jitter = pred_normal_jitter[ret_mask]
+        pred_lvis_jitter = pred_lvis_jitter[ret_mask]
+        pred_albedo_jitter = pred_albedo_jitter[ret_mask]
+        pred_brdf_jitter = pred_brdf_jitter[ret_mask]
+        
+        rgb = rgb[ret_mask]
+        alpha = alpha[ret_mask]
+        normal = normal[ret_mask]
+        lvis = lvis[ret_mask]
+        
+        
+        
+        pred = {'rgb': pred_rgb, 'normal': pred_normal, 'lvis': pred_lvis, 'albedo': pred_albedo, 'brdf': pred_brdf}
         gt = {'rgb': rgb, 'normal': normal, 'lvis': lvis, 'alpha': alpha}
         loss_kwargs = {
-            'mode': mode, 'normal_jitter': normal_jitter,
-            'lvis_jitter': lvis_jitter, 'brdf_prop_jitter': brdf_prop_jitter,
-            'albedo_jitter': albedo_jitter}
-        # ------ To visualize
-        to_vis = {'id': id_, 'hw': hw}
-        for k, v in pred.items():
-            to_vis['pred_' + k] = v
-        for k, v in gt.items():
-            to_vis['gt_' + k] = v
-        return pred, gt, loss_kwargs, to_vis
+            'mode': mode, 'normal_jitter': pred_normal_jitter,
+            'lvis_jitter': pred_lvis_jitter, 'brdf_prop_jitter': pred_brdf_jitter,
+            'albedo_jitter': pred_albedo_jitter}
+            # ------ To visualize
+        #to_vis = {'id': id_, 'hw': hw}
+        #for k, v in pred.items():
+        #    to_vis['pred_' + k] = v
+        #for k, v in gt.items():
+        #    to_vis['gt_' + k] = v
+        return pred, gt, loss_kwargs#, to_vis
 
     def _pred_albedo_at(self, net, pts, features=None):
         albedo_scale = self.albedo_slope
@@ -604,7 +640,7 @@ class RelightModule(nn.Module):
         lvis_pred, lvis_gt = pred['lvis'], gt['lvis']
         albedo_pred = pred['albedo']
         brdf_prop_pred = pred['brdf']
-        hdr = pred['hdr']
+        #hdr = pred['hdr']
 
         # RGB recon. loss is always here
         loss = 0

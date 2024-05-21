@@ -24,35 +24,25 @@ class RenderWrapper(nn.Module):
         self.loss = nn.ModuleDict(loss)
         self.loss_reg = nn.ModuleDict(loss_reg)
         
-        #print("RenderWrapper: ", net.models.keys())
-        self.relight = RelightModule(net.models.keys())
 
     def forward(self, batch):
-        ret = self.renderer(batch)
+        pred, gt, loss_kwargs = self.renderer(batch)
         #print(ret.keys())
-    
-        ret.update(batch)
-        rel_ret = self.relight(ret)
         
-        loss = 0
-        scalar_stats = {}
-        for key, func in self.loss.items():
-            val = func(batch, ret)
-            scalar_stats[key] = val
-            loss += self.weights[key] * val
-        for key, func in self.loss_reg.items():
-            val = func(self.renderer.net, batch, ret)
-            scalar_stats[key] = val
-            loss += self.weights[key] * val
-        for key in ['rgb_map', 'acc_map', 'occ_object', 'occ_back', 'human_0_occ']:
-            if key not in ret.keys():
-                continue
-            scalar_stats[key] = ret[key].mean()
-        for key in ['rgb']:
-            if key not in ret.keys():
-                continue
-            scalar_stats['mean_'+key] = batch[key].mean()        
-        scalar_stats.update({'loss': loss})
+        loss_sum, normal_loss, lvis_loss, normal_smooth_loss, lvis_smooth_loss, albedo_smooth_loss, brdf_smooth_loss, rgb_loss, albedo_entropy = self.renderer.compute_loss(pred, gt, **loss_kwargs)
+        
+        scalar_stats = {
+            'loss': loss_sum,
+            'normal_loss': normal_loss,
+            'lvis_loss': lvis_loss,
+            'normal_smooth_loss': normal_smooth_loss,
+            'lvis_smooth_loss': lvis_smooth_loss,
+            'albedo_smooth_loss': albedo_smooth_loss,
+            'brdf_smooth_loss': brdf_smooth_loss,
+            'rgb_loss': rgb_loss,
+            'albedo_entropy': albedo_entropy,
+        }
+        
         image_stats = {}
 
-        return ret, loss, scalar_stats, image_stats
+        return pred, loss_sum, scalar_stats, image_stats

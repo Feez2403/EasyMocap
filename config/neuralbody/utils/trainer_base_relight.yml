@@ -21,3 +21,16 @@ renderer_args:
   use_occupancy: True
   N_samples: 64
   split: test
+  
+train:
+  ep_iter: 1000
+  epoch: 500
+  save_ep: 1
+  save_latest_ep: 5
+  eval_ep: 100
+  skip_eval: True
+  batch_size: 1
+  shuffle: True
+  batch_sampler: "default"
+  num_workers: 4
+  collator: "default"
