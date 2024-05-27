@@ -285,7 +285,7 @@ class Network(Nerf):
         # feature_volume = self.encode_sparse_voxels(sp_input)
         wpts_flat = wpts.reshape(-1, 3)
         # convert viewdir to canonical space
-        sparse_feature = self.sparse_feature[self.current]
+        #sparse_feature = self.sparse_feature[self.current]
         
         ppts = pts_to_can_pts(wpts_flat, sparse_feature['sp_input'])
         # keep only points inside the bbox

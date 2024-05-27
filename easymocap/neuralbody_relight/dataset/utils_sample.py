@@ -93,6 +93,14 @@ def generate_weight_coords(bounds, rates, back_mask):
         else:
             # sample
             coord_ = coord_[np.random.randint(0, len(coord_), int(len(coord_)*rates[key]))]
+        #import matplotlib.pyplot as plt
+        #print("Coord: ", coord_.shape)
+        #print("key: ", key)
+        #co = np.zeros_like(back_mask)
+        #for (i, j) in coord_:
+        #    co[i, j] = 1
+        #plt.imshow(co)
+        #plt.show()
         coords.append(coord_)
     coords = np.vstack(coords)
     return coords

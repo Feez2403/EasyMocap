@@ -165,6 +165,8 @@ class Visualizer:
                 out_ = batch[key][0].detach().cpu().numpy()
             else:
                 out_ = output[key]
+            print (out_.shape)
+            print (coord.shape)
             res[coord[:, 0], coord[:, 1]] = out_
             if False:
                 res[coord[:, 0], coord[:, 1]] = out_ * output['acc_map'][:, None] + res[coord[:, 0], coord[:, 1]] *(1-output['acc_map'][:, None])
@@ -258,42 +260,36 @@ class Visualizer:
             maxs = output['depth_map'].shape[0]
             res[coord[:maxs, 0], coord[:maxs, 1]] = val
             outputs[key] = res
+        
+        for key in ['normal_map']:
+            if key not in output.keys():continue
+            res = np.zeros((H, W, 3))
+            print ("normal_map", output[key].shape)
+            print ("coord", coord.shape)    
+            res[coord[:, 0], coord[:, 1]] = output[key][0]
+            res = (np.clip(res, -1, 1.) + 1) * 127.5
+            res = res.astype(np.uint8)
+            outputs[key] = res
             
-        #for key in ['with_bg']:
-        #    if key not in self.keys:continue
-        #    print('rendering', key)
-        #    if 'depth_map' not in output.keys():
-        #        print('depth_map not found')
-        #        continue
-        #    if 'rgb_map' not in output.keys():
-        #        print('rgb_map not found')
-        #        continue
-        #    
-        #    res = np.zeros((H, W, 3))
-        #    maxs = output['rgb_map'].shape[0]
-        #    res[coord[:maxs, 0], coord[:maxs, 1]] = output['rgb_map']
-        #    res = res[..., ::-1] # BGR to RGB
-        #    
-        #    z_buffer = np.ones((H, W))*np.inf
-        #    maxs = output['depth_map'].shape[0]
-        #    z_buffer[coord[:maxs, 0], coord[:maxs, 1]] = output['depth_map']
-        #    
-        #    acc = np.zeros((H, W))
-        #    maxs = output['acc_map'].shape[0]
-        #    acc[coord[:maxs, 0], coord[:maxs, 1]] = output['acc_map']
-        #    acc = np.clip(acc, 0, 1.)
-        #    res[acc < 0.5] = self.back_col[0]
-        #    z_buffer[acc < 0.5] = np.inf
-        #    print(z_buffer[z_buffer<np.inf].min(), z_buffer[z_buffer<np.inf].max())
-        #    self.raster_compose.render(K, R, T, H, W, z_buffer, res)
-        #    res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
-        #    outputs[key] = res
-        #    
-        #    depth_min, depth_max = (2, 25.)
-        #    val = (z_buffer - depth_min)/(depth_max-depth_min)
-        #    pred = (np.clip(val, 0, 1.) * 255).astype(np.uint8)
-        #    pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
-        #    outputs[key + "_zbuffer"] = pred
+        for key in ['lvis_map']:
+            if key not in output.keys():continue
+            res = np.zeros((H, W))
+            print ("lvis_map", output[key].shape)
+            print ("coord", coord.shape)    
+            res[coord[:, 0], coord[:, 1]] = np.mean(output[key][0], axis=-1)
+            res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
+            outputs[key] = res
+
+        for key in ['albedo_map']:
+            if key not in output.keys():continue
+            res = np.zeros((H, W, 3))
+            print ("albedo_map", output[key].shape)
+            print ("coord", coord.shape)    
+            res[coord[:, 0], coord[:, 1]] = output[key][0]
+            res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
+            outputs[key] = res
+            
+        
         
         if self.concat == 'none':
             for key, pred in outputs.items():

@@ -2,7 +2,7 @@ trainer_module: "easymocap.neuralbody_relight.renderer.render_wrapper.RenderWrap
 trainer_args:
   renderer_module: "easymocap.neuralbody_relight.renderer.render_base.BaseRenderer"
   renderer_args:
-    chunk: 4096
+    chunk: 2048
     white_bkgd: False
     use_occupancy: True
     N_samples: 64
@@ -24,7 +24,7 @@ renderer_args:
   
 train:
   ep_iter: 1000
-  epoch: 500
+  epoch: 550
   save_ep: 1
   save_latest_ep: 5
   eval_ep: 100

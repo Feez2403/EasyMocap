@@ -58,18 +58,20 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     #    alpha = 1 - torch.exp(-dists*torch.relu(outputs['density'][..., 0] + noise)) # (N_rays, N_samples_)
     #else:
     #    raise NotImplementedError
+    #///////////////////////////////////////////////////////////////////////////////////////////
+    #dists = z_vals[..., 1:] - z_vals[..., :-1] # [N_rays, N_samples-1]
+    #
+    ##add a large value to the end of dists
+    #dists = torch.cat([dists,torch.Tensor([1e10]).expand(dists[..., :1].shape).to(dists)],-1)  # [N_rays, N_samples]
+    #
+    #dists = dists * torch.norm(rays_d, dim=-1)
+    #noise = 0.
+    ## alpha = raw2alpha(raw[..., -1] + noise, dists)  # [N_rays, N_samples]
+    #
+    ##alpha = 1 - torch.exp(-dists*torch.relu(outputs['density'][..., 0] + noise)) # (N_rays, N_samples_)
+    #alpha = 1 - torch.exp(-dists*torch.relu(outputs['occupancy'][..., 0] + noise)) # (N_rays, N_samples_)
     
-    dists = z_vals[..., 1:] - z_vals[..., :-1] # [N_rays, N_samples-1]
-    
-    #add a large value to the end of dists
-    dists = torch.cat([dists,torch.Tensor([1e10]).expand(dists[..., :1].shape).to(dists)],-1)  # [N_rays, N_samples]
-    
-    dists = dists * torch.norm(rays_d, dim=-1)
-    noise = 0.
-    # alpha = raw2alpha(raw[..., -1] + noise, dists)  # [N_rays, N_samples]
-    
-    #alpha = 1 - torch.exp(-dists*torch.relu(outputs['density'][..., 0] + noise)) # (N_rays, N_samples_)
-    alpha = 1 - torch.exp(-dists*torch.relu(outputs['occupancy'][..., 0] + noise)) # (N_rays, N_samples_)
+    alpha = outputs['occupancy'][..., 0]
     
     weights = alpha * torch.cumprod(
         torch.cat(
@@ -78,9 +80,11 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     acc_map = torch.sum(weights, -1)
     # ATTN: here depth must /||ray_d||
     depth_map = torch.sum(weights * z_vals, -1)/(1e-10 + acc_map)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
+    depth_raw = torch.sum(weights * z_vals, -1)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
     results = {
         'acc_map': acc_map, # [N_rays]
         'depth_map': depth_map, # [N_rays]
+        'depth_raw': depth_raw, # [N_rays]
     }
     for key, val in outputs.items():
         if key == 'occupancy':
@@ -180,23 +184,33 @@ class BaseRenderer(nn.Module):
             
             #raw_output = {'occupancy': alpha,'raw_alpha': raw_alpha}
             #print(f"z_vals.shape: {z_vals.shape}")
-            
-            
-            #density = raw_output['density']
-            density = raw_output['occupancy']
-            normal = torch.autograd.grad(density, pts, torch.ones_like(density), retain_graph=True)[0]
-            raw_output['normal'] = normal
-            #print(f"raw_output.keys: {raw_output.keys()}") # "occupancy", "raw_alpha", "density", "normal
-            #print(f"raw_output['normal'].shape: {raw_output['normal'].shape}")
-            #print(f"raw_output['density'].shape: {raw_output['density'].shape}")
             raw_output['z_vals'] = z_vals[..., 0]
-            #print(f"raw_output['z_vals'].shape: {raw_output['z_vals'].shape}")
-            # add instance
+            
             instance_ = torch.zeros((*pts.shape[:-1], len(keys_all)), 
-                dtype=pts.dtype, device=pts.device)
+                        dtype=pts.dtype, device=pts.device)
             instance_[..., keys_all.index(key)] = 1.
             raw_output['instance'] = instance_
-            #print(f"raw_output['instance'].shape: {raw_output['instance'].shape}")
+                    
+            #density = raw_output['density']
+            if self.split == 'train':
+                with torch.no_grad():
+                    #for param in self.net.model(key).parameters():
+                    #    if param.requires_grad:
+                    #        print(f"param: {param}")
+                    density = raw_output['occupancy']
+                    normal = -torch.autograd.grad(density, pts, torch.ones_like(density), retain_graph=True)[0]
+                    raw_output['normal'] = normal
+                    #print(f"raw_output.keys: {raw_output.keys()}") # "occupancy", "raw_alpha", "density", "normal
+                    #print(f"raw_output['normal'].shape: {raw_output['normal'].shape}")
+                    #print(f"raw_output['density'].shape: {raw_output['density'].shape}")
+                    
+                    
+                    #print(f"raw_output['z_vals'].shape: {raw_output['z_vals'].shape}")
+                    # add instance
+                    
+                    #print(f"raw_output['instance'].shape: {raw_output['instance'].shape}")
+                    
+                    
             raw_padding = {}
             for key_out, val in raw_output.items():
                 if len(val.shape) == 1: # for traj
@@ -217,6 +231,10 @@ class BaseRenderer(nn.Module):
                 'raw_alpha': occupancy}#todo
             blank_output['raw_rgb'] = blank_output['rgb']#todo
             ret = raw2outputs(blank_output, z_vals_blank, ray_d, bkgd)#todo
+            ret['acc_map'] = torch.zeros([ray_d.shape[0]], device=ray_d.device)#todo
+            ret['depth_raw'] = torch.zeros([ray_d.shape[0]], device=ray_d.device)#todo
+            if self.split == 'train':
+                ret['normal_map'] = torch.zeros([ray_d.shape[0], 3], device=ray_d.device)
             print("ret_all == 0")#todo
             return ret
         raw_concat = concat(ret_all, dim=1, unsqueeze=False)
@@ -238,93 +256,103 @@ class BaseRenderer(nn.Module):
         #    print(f"ret[{key}].shape: {ret[key].shape}")
         
         acc = ret['acc_map'] # (N_rays)
-        depth = ret['depth_map'] # (N_rays)
+        depth = ret['depth_raw'] # (N_rays)
         #print (f"acc.shape: {acc.shape}")
         #print (f"depth.shape: {depth.shape}")
         #print (f"ray_d.shape: {ray_d.shape}")
         #print (f"ray_o.shape: {ray_o.shape}")   
         surf = ray_o + ray_d * depth.reshape(-1,1,1) # (N_rays,1, 3) xyz of the surface
-        ret['normal_map'] = -torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
-        normal = ret['normal_map']
-        #print(f"normal.shape: {normal.shape}")
-        with torch.no_grad():
-            light_xyz, _ = gen_light_xyz(16,32)
-            
-            light_xyz = torch.from_numpy(light_xyz).float().to(ray_d.device).reshape(1,-1,3) # (1, N_lights, 3)
-            n_lights = light_xyz.shape[1]
-            #print(f"n_lights: {n_lights}")
-            lvis_hit = torch.zeros(surf.shape[0],n_lights,device=surf.device)
-            lpix_chunk = 64
-            for i in range(0,n_lights,lpix_chunk):
-                end_i = min(n_lights,i+lpix_chunk)
-                lxyz_chunk = light_xyz[:,i:end_i] # (1, lpix_chunk, 3)
-                #print(f"lxyz_chunk.shape: {lxyz_chunk.shape}")
-                #print(f"surf.shape: {surf.shape}")
-                surf2light = lxyz_chunk - surf # (N_rays, lpix_chunk, 3)
-                surf2light = torch.nn.functional.normalize(surf2light, p=2, dim=-1)
-                surf2lightflat = surf2light.reshape(-1,3)
-                lcos = torch.einsum('ijk,ik->ij', surf2light, normal) # (N_rays, lpix_chunk)
+        if self.split == 'train':
+            with torch.no_grad():
+                ret['normal_map'] = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
+                normal = ret['normal_map']
+        
+                light_xyz, _ = gen_light_xyz(8,16)
                 
-                # for each pixel, whether each light is in front of the surface
-                front_lit = lcos > 0 # (N_rays, lpix_chunk) 
-                front_lit = front_lit.reshape(-1)
-                if torch.sum(front_lit) == 0:
-                    continue
-                surfrep = surf.repeat(1,surf2light.shape[1], 1)
-                surfflat = surfrep.reshape(-1,3)
-                front_surf = surfflat[front_lit, :].reshape(-1,1,3) # ray origin ( N_rays * lpix_chunk,1, 3)
-                front_surf2light = surf2lightflat[front_lit, :].reshape(-1,1,3) # ray direction ( N_rays * lpix_chunk,1, 3)
-                lvis_far = torch.ones(front_surf.shape[:2],device=surf.device) * 2.0 # lvis_far = 20 (N_rays * lpix_chunk,1)
-                lvis_near = torch.ones(front_surf.shape[:2],device=surf.device) * 0.0 # lvis_near = 0.0 (N_rays * lpix_chunk,1)
-                
-                ret_all = []
-                for key in object_keys:
-                    if key in ["ground", "background"]:
+                light_xyz = torch.from_numpy(light_xyz).float().to(ray_d.device).reshape(1,-1,3) # (1, N_lights, 3)
+                n_lights = light_xyz.shape[1]
+                #print(f"n_lights: {n_lights}")
+                lvis_hit = torch.zeros(surf.shape[0],n_lights,device=surf.device)
+                lpix_chunk = 64
+                for i in range(0,n_lights,lpix_chunk):
+                    end_i = min(n_lights,i+lpix_chunk)
+                    lxyz_chunk = light_xyz[:,i:end_i] # (1, lpix_chunk, 3)
+                    #print(f"lxyz_chunk.shape: {lxyz_chunk.shape}")
+                    #print(f"surf.shape: {surf.shape}")
+                    surf2light = lxyz_chunk - surf # (N_rays, lpix_chunk, 3)
+                    surf2light = torch.nn.functional.normalize(surf2light, p=2, dim=-1)
+                    surf2lightflat = surf2light.reshape(-1,3)
+                    lcos = torch.einsum('ijk,ik->ij', surf2light, normal) # (N_rays, lpix_chunk)
+                    
+                    # for each pixel, whether each light is in front of the surface
+                    front_lit = lcos > 0 # (N_rays, lpix_chunk) 
+                    front_lit = front_lit.reshape(-1)
+                    if torch.sum(front_lit) == 0:
                         continue
-                    if '@' in key:
-                        model = self.net.model(mapkeys[key])
-                        model.current = key
-                    else:
-                        model = self.net.model(key)
-                        model.current = key
+                    surfrep = surf.repeat(1,surf2light.shape[1], 1)
+                    surfflat = surfrep.reshape(-1,3)
+                    front_surf = surfflat[front_lit, :].reshape(-1,1,3) # ray origin ( N_rays * lpix_chunk,1, 3)
+                    front_surf2light = surf2lightflat[front_lit, :].reshape(-1,1,3) # ray direction ( N_rays * lpix_chunk,1, 3)
+                    lvis_far = torch.ones(front_surf.shape[:2],device=surf.device) * 0.5 # lvis_far = 20 (N_rays * lpix_chunk,1)
+                    lvis_near = torch.ones(front_surf.shape[:2],device=surf.device) * 0.0 # lvis_near = 0.0 (N_rays * lpix_chunk,1)
+                    
+                    #ret_all = []
+                    #for key in object_keys:
+                    #    if key in ["ground", "background"]:
+                    #        continue
+                    #    if '@' in key:
+                    #        model = self.net.model(mapkeys[key])
+                    #        model.current = key
+                    #    else:
+                    #        model = self.net.model(key)
+                    #        model.current = key
+                    #    
+                    #    
+                    #    #print(f"key: {key}")
+                    #    lvis_z, lvis_pts, lvis_raw_output = model.calculate_density_from_ray(
+                    #        front_surf, front_surf2light, lvis_near, lvis_far, self.split)
+                    #    #print(f"lvis_z.shape: {lvis_z.shape}")
+                    #    #print(f"lvis_pts.shape: {lvis_pts.shape}")
+                    #    #print(f"lvis_raw_output.keys: {lvis_raw_output.keys()}")
+                    #    lvis_raw_output['z_vals'] = lvis_z[..., 0]
+                    #                        
+                    #    ret_all.append(lvis_raw_output)
+                    #
+                    #if len(ret_all) == 0:
+                    #    print("ret_all_light == 0")
+                    #    continue
+                    #
+                    #raw_concat = concat(ret_all, dim=1, unsqueeze=False)
+                    #z_vals = raw_concat.pop('z_vals')
+                    #z_vals_sorted, indices = torch.sort(z_vals, dim=-1)
+                    #
+                    #ind_0 = torch.zeros_like(indices, device=indices.device)
+                    #ind_0 = ind_0 + torch.arange(0, indices.shape[0], device=indices.device).reshape(-1, 1)
+                    #raw_sorted = {}
+                    #for key, val in raw_concat.items():
+                    #    val_sorted = val[ind_0, indices]
+                    #    raw_sorted[key] = val_sorted
+                    #    #print(f"raw_sorted[{key}].shape: {raw_sorted[key].shape}")
+                    #
+                    #lvis_outputs = raw2outputs(raw_sorted, z_vals_sorted, front_surf2light, bkgd)
+    #
+                    #lvis_acc = lvis_outputs['acc_map']
                     
                     
-                    #print(f"key: {key}")
                     lvis_z, lvis_pts, lvis_raw_output = model.calculate_density_from_ray(
-                        front_surf, front_surf2light, lvis_near, lvis_far, self.split)
-                    #print(f"lvis_z.shape: {lvis_z.shape}")
-                    #print(f"lvis_pts.shape: {lvis_pts.shape}")
-                    #print(f"lvis_raw_output.keys: {lvis_raw_output.keys()}")
-                    lvis_raw_output['z_vals'] = lvis_z[..., 0]
-                                        
-                    ret_all.append(lvis_raw_output)
-                
-                if len(ret_all) == 0:
-                    print("ret_all_light == 0")
-                    continue
-                
-                raw_concat = concat(ret_all, dim=1, unsqueeze=False)
-                z_vals = raw_concat.pop('z_vals')
-                z_vals_sorted, indices = torch.sort(z_vals, dim=-1)
-                
-                ind_0 = torch.zeros_like(indices, device=indices.device)
-                ind_0 = ind_0 + torch.arange(0, indices.shape[0], device=indices.device).reshape(-1, 1)
-                raw_sorted = {}
-                for key, val in raw_concat.items():
-                    val_sorted = val[ind_0, indices]
-                    raw_sorted[key] = val_sorted
-                    #print(f"raw_sorted[{key}].shape: {raw_sorted[key].shape}")
-                
-                lvis_outputs = raw2outputs(raw_sorted, z_vals_sorted, front_surf2light, bkgd)
-
-                lvis_acc = lvis_outputs['acc_map']
-                tmp = torch.zeros(lvis_hit.shape, dtype=bool)
-                front_lit = front_lit.reshape(n_pixel, lpix_chunk)
-                tmp[:, i:end_i] = front_lit
-                lvis_hit[tmp] = 1 - lvis_acc
-                
+                            front_surf, front_surf2light, lvis_near, lvis_far, self.split)
+                    lvis_outputs = raw2outputs(lvis_raw_output, lvis_z[..., 0], front_surf2light, bkgd)
+                    lvis_acc = lvis_outputs['acc_map']
+                    
+                    tmp = torch.zeros(lvis_hit.shape, dtype=bool)
+                    front_lit = front_lit.reshape(n_pixel, lpix_chunk)
+                    tmp[:, i:end_i] = front_lit
+                    lvis_hit[tmp] = 1 - lvis_acc
+                ret['lvis_hit'] = lvis_hit
+             
         ret['surf'] = surf.reshape(n_pixel, 3)
-        ret['lvis_hit'] = lvis_hit
+        
+        
         
         
         # toc('render')
@@ -360,11 +388,74 @@ class BaseRenderer(nn.Module):
         viewdir = batch['viewdirs'][0].unsqueeze(1)
         retlist = []
         for bn in range(0, viewdir.shape[0], self.chunk):
+            #print(f"bn: {bn} / {viewdir.shape[0]}")
             start, end = bn, min(bn + self.chunk, viewdir.shape[0])
             ret = self.batch_forward(batch, viewdir, start, end, bkgd)
             if ret is not None:
                 retlist.append(ret)
+            
+        
+        #print(f"rgb.shape: {rgb.shape}")
+            
         res = self.compose(retlist)
+        
+        #if batch["meta"]["step"] % 10 == 0:
+        #    coords = batch['coord']
+#
+        #    import matplotlib.pyplot as plt
+        #    rgb = res['normal_map']
+        #    rgb = torch.abs(rgb)
+        #    rgb = rgb[0].detach().cpu().numpy()
+        #    coords = coords[0].cpu().numpy()
+        #    blank = np.zeros((1080,1920,3)) 
+        #    print(f"coords.shape: {coords.shape}")
+        #    print(f"rgb.shape: {rgb.shape}")
+        #    
+        #    blank[coords[:,0],coords[:,1]] = rgb
+        #    
+        #    plt.imshow(blank)
+        #    plt.show()
+        #
+        #blank = np.zeros((1080,1920))
+        #blank[coords[:,0],coords[:,1]] = res['acc_map'][0].detach().cpu().numpy()
+        #plt.imshow(blank)
+        #plt.show()
+        #
+        #blank = np.zeros((1080,1920))
+        #blank[coords[:,0],coords[:,1]] = res['depth_raw'][0].detach().cpu().numpy()
+        #print("max depth: ", np.max(res['depth_raw'][0].detach().cpu().numpy()))
+        #print("min depth: ", np.min(res['depth_raw'][0].detach().cpu().numpy()))
+        #plt.imshow(blank)
+        #plt.show()
+        #
+        #print("res['lvis_hit'].shape: ", res['lvis_hit'].shape)
+        #lvis_hit_sum = torch.sum(res['lvis_hit'], dim=-1)
+        #blank = np.zeros((1080,1920))
+        #blank[coords[:,0],coords[:,1]] = lvis_hit_sum.detach().cpu().numpy()
+        #plt.imshow(blank)
+        #plt.show()
+        
+        
+        #blank = np.zeros((1080,1920))
+        #blank[coords[:,0],coords[:,1]] = res['depth_raw'][0].detach().cpu().numpy() 
+        #plt.imshow(blank)
+        #plt.show()
+        
+        
+        #surf = res['surf'][0].detach().cpu().numpy()
+        #ray_o = batch['ray_o'][0].cpu().numpy()
+        #print (f"surf.shape: {surf.shape}")
+        #print (f"ray_o.shape: {ray_o.shape}")
+        #dist = np.linalg.norm(surf - ray_o, axis=-1)
+        #dist = dist / np.max(dist)
+        #
+        #blank = np.zeros((1080,1920))
+        #blank[coords[:,0],coords[:,1]] = dist
+        #
+        #plt.imshow(blank)
+        #plt.show()
+        
+        
         # add cache
         res.update(res_cache)
         res['keys'] = keys
@@ -372,10 +463,13 @@ class BaseRenderer(nn.Module):
         return res
 
     def forward(self, batch):
+        #print("batch.keys(): ", batch.keys())
+        #print("batch['meta'].keys(): ", batch['meta'].keys())
         keys = [d[0] for d in batch['meta']['keys']]
         rand_bkgd = None
         device = batch['rgb'].device
         #print(batch.keys())
+        #print(batch['rgb'].shape)
         if self.split == 'train':
             rand_bkgd = torch.rand(3, device=device).reshape(1, 1, 3)
         else:
@@ -384,6 +478,7 @@ class BaseRenderer(nn.Module):
         #if len(keys) == 1:
         #    results = self.forward_single(batch, rand_bkgd)
         #else:
+        
         results = self.forward_multi(batch, rand_bkgd)
 
         # set the random background in target
@@ -393,8 +488,14 @@ class BaseRenderer(nn.Module):
                 batch['rgb'][0, idx] = rand_bkgd
             else:
                 batch['rgb'][0, idx] = 0.
-                
-        return self.relight(batch,results)
+        
+        out = self.relight(batch, results, mode = self.split)
+        if self.split != 'train':
+            out["keys"] = keys
+            out["acc_map"] = results["acc_map"]
+            out["depth_map"] = results["depth_map"]
+            out["instance_map"] = results["instance_map"]
+        return out
 
     def compute_loss(self, batch, ret, **loss_kwargs):
         loss = self.relight.compute_loss(batch, ret, **loss_kwargs)

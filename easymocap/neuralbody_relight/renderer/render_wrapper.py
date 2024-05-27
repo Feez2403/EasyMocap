@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from ...config import load_object
 from .render_relight import RelightModule
+from .render_base import BaseRenderer
 
 # train_renderer
 class RenderWrapper(nn.Module):
@@ -16,7 +17,7 @@ class RenderWrapper(nn.Module):
         super().__init__()
         renderer_args = dict(renderer_args)
         renderer_args['net'] = net
-        self.renderer = load_object(renderer_module, renderer_args)
+        self.renderer = BaseRenderer(**renderer_args)
         self.weights = {key:val['weight'] for key, val in loss.items()}
         self.weights.update({key:val['weight'] for key, val in loss_reg.items()})
         loss = {key:load_object(val.module, val.args) for key, val in loss.items()}

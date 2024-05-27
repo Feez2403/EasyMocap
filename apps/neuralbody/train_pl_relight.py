@@ -1,5 +1,6 @@
 # Training code based on PyTorch-Lightning
 import os
+
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from torch.optim.optimizer import Optimizer
 # To run on windows, need to set PL_TORCH_DISTRIBUTED_BACKEND=gloo
@@ -13,6 +14,10 @@ from easymocap.config import load_object, Config
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning import seed_everything
+from easymocap.neuralbody_relight.renderer.render_wrapper import RenderWrapper
+from easymocap.neuralbody_relight.model.compose import ComposedModel
+from easymocap.neuralbody_relight.dataset.mvbase import BaseDataset
+
 # https://github.com/Project-MONAI/MONAI/issues/701
 #import resource
 #rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -23,12 +28,13 @@ class plwrapper(pl.LightningModule):
         super().__init__()
         # load model
         self.cfg = cfg
-        self.network = load_object(cfg.network_module, cfg.network_args)
+        self.network = ComposedModel(**cfg.network_args)
+        load_ckpt(self.network, join("neuralbody","wildtrack_remapped","model","last.ckpt"))
         trainer_args = dict(cfg.trainer_args)
         trainer_args['net'] = self.network
-        self.train_renderer = load_object(cfg.trainer_module, trainer_args)
+        self.train_renderer = RenderWrapper(**trainer_args)
         if mode == 'train' or mode == 'trainvis':
-            self.train_dataset = load_object(cfg.data_train_module, cfg.data_train_args)
+            self.train_dataset =  BaseDataset(**cfg.data_train_args)
         # self.val_dataset = load_object(cfg.data_val_module, cfg.data_val_args)
         else:
             if mode + '_renderer_module' in cfg.keys():
@@ -41,6 +47,13 @@ class plwrapper(pl.LightningModule):
         else:
             module, args = cfg.visualizer_module, cfg.visualizer_args
         self.visualizer = load_object(module, args)
+        
+        #for param in self.network.parameters():
+            #param.requires_grad = False
+            
+        #for param in self.train_renderer.renderer.net.parameters():
+            #param.requires_grad = False
+        #print("weight human0: ", self.network.state_dict())
 
     def forward(self, batch):
         # in lightning, forward defines the prediction/inference actions
@@ -63,28 +76,37 @@ class plwrapper(pl.LightningModule):
     def train_dataloader(self):
         from easymocap.neuralbody.trainer.dataloader import make_data_sampler, make_batch_data_sampler, make_collator, worker_init_fn
         shuffle = True
-        is_distributed = len(cfg.gpus) > 1
+        is_distributed = len(self.cfg.gpus) > 1
         is_train = True
         sampler = make_data_sampler(self.cfg, self.train_dataset, shuffle, is_distributed, is_train)
         batch_size = self.cfg.train.batch_size
         drop_last = False
-        max_iter = cfg.train.ep_iter
+        max_iter = self.cfg.train.ep_iter
 
-        self.batch_sampler = make_batch_data_sampler(cfg, sampler, batch_size,
+        self.batch_sampler = make_batch_data_sampler(self.cfg, sampler, batch_size,
                                             drop_last, max_iter, is_train)
-        num_workers = cfg.train.num_workers
-        collator = make_collator(cfg, is_train)
+        num_workers = self.cfg.train.num_workers
+        collator = make_collator(self.cfg, is_train)
         data_loader = torch.utils.data.DataLoader(self.train_dataset,
                                               batch_sampler=self.batch_sampler,
                                               num_workers=num_workers,
                                               collate_fn=collator,
                                               worker_init_fn=worker_init_fn)
         return data_loader
+    
+    def optimizer_step(
+        self,
+        *args,**kwargs
+    ):
+        for param in self.network.parameters():            
+            param.grad = None
+            
+        super().optimizer_step(*args, **kwargs)
 
     def configure_optimizers(self):
         from easymocap.neuralbody.trainer.optimizer import Optimizer
         from easymocap.neuralbody.trainer.lr_sheduler import Scheduler, set_lr_scheduler
-        optimizer = Optimizer(self.network, cfg.optimizer)
+        optimizer = Optimizer(self.train_renderer, cfg.optimizer)
         scheduler = Scheduler(cfg.scheduler, optimizer)
         return [optimizer], [scheduler]
     
@@ -94,14 +116,28 @@ class plwrapper(pl.LightningModule):
 
 def train(cfg):
     model = plwrapper(cfg)
-    if cfg.resume and os.path.exists(join(cfg.trained_model_dir, 'last.ckpt')):
-        print('Resume from {}'.format(join(cfg.trained_model_dir, 'last.ckpt')))
-        resume_from_checkpoint = join(cfg.trained_model_dir, 'last.ckpt')
-        ckpt_epoch = load_ckpt(model.network, resume_from_checkpoint) 
+    if cfg.resume and os.path.exists(join("neuralbody","wildtrack_remapped","model","last.ckpt")):
+        print('Resume multi-neuralbody from {}'.format(join(cfg.trained_model_dir, 'last.ckpt')))
+        trained_no_relight_dir = join("neuralbody","wildtrack_remapped","model","last.ckpt")
+        resume_trainer_from_checkpoint = join(cfg.trained_model_dir, 'last.ckpt')
+        ckpt_epoch = load_ckpt(model.network, trained_no_relight_dir, model_name='network')
+        for param in model.network.parameters():
+            param.requires_grad = False
+        model.train_renderer.renderer.net = model.network
+        model.train_renderer.renderer.relight.net = model.network
+        if os.path.exists(resume_trainer_from_checkpoint):
+            print('Resume relight trainer from {}'.format(resume_trainer_from_checkpoint))
+            ckpt_epoch = load_ckpt(model.train_renderer, resume_trainer_from_checkpoint, model_name='train_renderer')
+            
+        else:
+            print('Resume relight trainer from scratch using pretrained features for the object features network')
+            #load_ckpt(model.train_renderer.renderer.net, trained_no_relight_dir, model_name='network')
+        
         
             
             
     else:
+        raise NotImplementedError("Please provide a pretrained model to resume from")
         print('Start from scratch')
         resume_from_checkpoint = None
         if os.path.exists(cfg.recorder_args.log_dir):
@@ -168,11 +204,20 @@ def test(cfg):
 
     ckptpath = join(cfg.trained_model_dir, 'last.ckpt')
     if os.path.exists(ckptpath):
-        epoch = load_ckpt(model.network, ckptpath)
+        epoch = load_ckpt(model.network, ckptpath, model_name='network')
+        load_ckpt(model.test_renderer, ckptpath, model_name='train_renderer.renderer')
+        for param in model.network.parameters():
+            param.requires_grad = False
+        for param in model.train_renderer.renderer.net.parameters():
+            param.requires_grad = False
+        
+        model.train_renderer.renderer.net = model.network
+        model.train_renderer.renderer.relight.net = model.network
     else:
         myerror('{} not exists'.format(ckptpath))
         epoch = -1
-    model.step = epoch * 1000
+    model.step = epoch * 1000      
+            
     if cfg['output'] == 'none':
         vis_out_dir = join('neuralbody', cfg.exp, cfg.split + '_{}'.format(epoch))
     else:

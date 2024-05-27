@@ -14,4 +14,5 @@ python apps/neuralbody/demo.py --mode wildtrack data/wildtrack_tonemaped --gpus 
 python apps/neuralbody/demo.py --mode wildtrack data/wildtrack_remaped --gpus 0, --demo
 
 # remap + relight
-python apps/neuralbody/demo.py --mode wildtrack_relight data/wildtrack_remaped --gpus 0,
+python apps/neuralbody/demo_relight.py --mode wildtrack_relight data/wildtrack_remaped --gpus 0,
+python apps/neuralbody/demo_relight.py --mode wildtrack_relight data/wildtrack_remaped --gpus 0, --demo
