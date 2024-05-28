@@ -14,7 +14,9 @@ import os
 import os.path as osp
 import numpy as np
 import copy
+import cv2
 
+import matplotlib.pyplot as plt
 class RelightModule(nn.Module):
     def __init__(self, net):
         super().__init__()
@@ -110,13 +112,18 @@ class RelightModule(nn.Module):
                     novel_olat['%04d-%04d' % (i, j)] = envmap
         self.novel_olat = novel_olat
         # (2) Light probes
+        self.do_relight_probes = True
         novel_probes = OrderedDict()
         for path in sorted(os.listdir('light-probes/')):
             if '.hdr' in path:
                 name = basename(path)[:-len('.hdr')]
                 arr = read_hdr(osp.join('light-probes/', path))
+                arr = cv2.resize(arr, (self.light_res[1], self.light_res[0]), interpolation=cv2.INTER_LINEAR)
+                #plt.imshow(arr)
+                #plt.show()
                 tensor = torch.from_numpy(arr).cuda()
                 novel_probes[name] = tensor
+                print("novel_probes: ", name, tensor.shape)
         self.novel_probes = novel_probes
     
     def _init_embedder(self):
@@ -363,7 +370,7 @@ class RelightModule(nn.Module):
                 return torch.clip(self._light, min=0., max=1e6) + light_noise
 
 
-    def forward(self, batch, result, mode='train', relight_olat=False, relight_probes=False, albedo_scale=None, albedo_override=None, brdf_z_override=None):
+    def forward(self, batch, result, mode='train', relight_olat=False, relight_probes=True, albedo_scale=None, albedo_override=None, brdf_z_override=None):
         
         xyz_jitter_std = self.xyz_jitter_std
         #id_, hw, rayo, _, rgb, alpha, xyz, normal, lvis, raw_batch = batch
@@ -400,6 +407,9 @@ class RelightModule(nn.Module):
         pred_lvis_jitter = torch.zeros_like(pred_lvis)
         pred_albedo_jitter = torch.zeros_like(surf_map)
         pred_brdf_jitter = torch.zeros_like(surf_map)
+        
+        if self.do_relight_probes:
+            pred_rgb_probes = torch.zeros((surf_map.shape[0], surf_map.shape[1], len(self.novel_probes), 3), device=torch.device('cuda:0'))
         
         
         
@@ -513,23 +523,28 @@ class RelightModule(nn.Module):
                 albedo_jitter = None
             else:
                 albedo_jitter = self._pred_albedo_at(net, xyz + xyz_noise, features_jitter)
-        
-            brdf_prop = self._pred_brdf_at(net, xyz, features)
-            if xyz_noise is None:
-                brdf_prop_jitter = None
-            else:
-                brdf_prop_jitter = self._pred_brdf_at(net, xyz + xyz_noise, features_jitter)
-            if self.normalize_brdf_z:
-                brdf_prop = torch.nn.functional.normalize(brdf_prop, p=2, dim=-1, eps=1e-7)
-                if brdf_prop_jitter is not None:
-                    brdf_prop_jitter = torch.nn.functional.normalize(brdf_prop_jitter, p=2, dim=-1, eps=1e-7)
-        
-            #print("eval_brdf_at")
-            brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
 
+            if False :
+                brdf_prop = self._pred_brdf_at(net, xyz, features)
+                if xyz_noise is None:
+                    brdf_prop_jitter = None
+                else:
+                    brdf_prop_jitter = self._pred_brdf_at(net, xyz + xyz_noise, features_jitter)
+                if self.normalize_brdf_z:
+                    brdf_prop = torch.nn.functional.normalize(brdf_prop, p=2, dim=-1, eps=1e-7)
+                    if brdf_prop_jitter is not None:
+                        brdf_prop_jitter = torch.nn.functional.normalize(brdf_prop_jitter, p=2, dim=-1, eps=1e-7)
+            else:
+                brdf_prop = torch.zeros_like(albedo)
+                brdf_prop_jitter = torch.zeros_like(albedo)
+                ##print("eval_brdf_at")
+            #brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
+            
+            brdf = albedo[ :, None, :].repeat(1, self.NLights, 1) / np.pi # NxLx3 Default Lambertian BRDF
+            
             #print("_render")
             # rendering
-            rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, relight_olat=relight_olat, relight_probes=relight_probes)
+            rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, relight_olat=relight_olat, relight_probes=self.do_relight_probes and mode != 'train')
 
                        
             pred_rgb[mask] = rgb_pred
@@ -547,8 +562,8 @@ class RelightModule(nn.Module):
             
             #if rgb_olat is not None:
             #    pred['rgb_olat'] = rgb_olat
-            #if rgb_probes is not None:
-            #    pred['rgb_probes'] = rgb_probes
+            if rgb_probes is not None:
+                pred_rgb_probes[mask] = rgb_probes 
         
         
         if mode != 'train':
@@ -558,10 +573,12 @@ class RelightModule(nn.Module):
             pred_lvis = torch.where(ret_mask, pred_lvis, torch.zeros_like(pred_lvis))
             pred_albedo = torch.where(ret_mask, pred_albedo, torch.zeros_like(pred_albedo))
             pred_brdf =  torch.where(ret_mask, pred_brdf, torch.zeros_like(pred_brdf))
-
-            print ("pred_rgb2: ", pred_rgb.shape)
+            if rgb_probes is not None:
+                
+                pred_rgb_probes = torch.where(ret_mask[..., None], pred_rgb_probes, torch.zeros_like(pred_rgb_probes))
         
-            return {'rgb_map': pred_rgb[None,:], 'normal_map': pred_normal[None,:], 'lvis_map': pred_lvis[None,:], 'albedo_map': pred_albedo[None,:], 'brdf_map': pred_brdf[None,:]}
+            return {'rgb_map': pred_rgb[None,:], 'normal_map': pred_normal[None,:], 'lvis_map': pred_lvis[None,:], 
+                    'albedo_map': pred_albedo[None,:], 'brdf_map': pred_brdf[None,:], 'rgb_probes': pred_rgb_probes[None,:]}
         
         
         pred_rgb = pred_rgb[ret_mask]
@@ -645,8 +662,7 @@ class RelightModule(nn.Module):
 
     def _render(
             self, light_vis, brdf, surf2light, normal,
-            relight_olat=False, relight_probes=False,
-            white_light_override=False, white_lvis_override=False):
+            relight_olat=False, relight_probes=False):
         linear2srgb = self.linear2srgb
         light = self.light()
 
@@ -708,7 +724,7 @@ class RelightModule(nn.Module):
         normal_pred, normal_gt = pred['normal'], gt['normal']
         lvis_pred, lvis_gt = pred['lvis'], gt['lvis']
         albedo_pred = pred['albedo']
-        brdf_prop_pred = pred['brdf']
+        brdf_prop_pred = pred.get('brdf', None)
         #hdr = pred['hdr']
 
         # RGB recon. loss is always here

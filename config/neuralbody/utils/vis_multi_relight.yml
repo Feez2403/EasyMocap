@@ -3,7 +3,7 @@ visualizer_args:
   out: none
   concat: none
   format: index
-  keys: ['rgb', 'rgb_map', 'instance_map', 'depth_map', 'acc_map', 'normal_map', 'lvis_map']
+  keys: ['rgb', 'rgb_map', 'instance_map', 'depth_map', 'acc_map', 'normal_map', 'lvis_map', 'rgb_probes']
   depth_range: [0.1, 20.]
   # back_col: [1., 1., 1.]
   back_col: [0., 0., 0.]

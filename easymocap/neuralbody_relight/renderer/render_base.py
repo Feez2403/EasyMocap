@@ -80,7 +80,20 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     acc_map = torch.sum(weights, -1)
     # ATTN: here depth must /||ray_d||
     depth_map = torch.sum(weights * z_vals, -1)/(1e-10 + acc_map)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
-    depth_raw = torch.sum(weights * z_vals, -1)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
+    
+    # OPTION 1 : weighted average of the depth from the raw output 
+    #depth_raw = torch.sum(weights * z_vals, -1)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
+    depth_raw = depth_map
+    
+    # OPTION 2 : first value of z_vals above the threshold
+    #threshold = 0.5
+    #msk = torch.gt(alpha, threshold)
+    #
+    #indices = torch.argmax(msk, dim=-1)
+    #depth_raw = torch.where(msk.any(dim=-1), z_vals[torch.arange(z_vals.shape[0]), indices], torch.zeros_like(z_vals[:, 0])) / torch.norm(rays_d, dim=-1).squeeze()
+    
+     
+    
     results = {
         'acc_map': acc_map, # [N_rays]
         'depth_map': depth_map, # [N_rays]
@@ -192,7 +205,7 @@ class BaseRenderer(nn.Module):
             raw_output['instance'] = instance_
                     
             #density = raw_output['density']
-            if self.split == 'train':
+            if self.split == 'train' :
                 with torch.no_grad():
                     #for param in self.net.model(key).parameters():
                     #    if param.requires_grad:
@@ -233,8 +246,11 @@ class BaseRenderer(nn.Module):
             ret = raw2outputs(blank_output, z_vals_blank, ray_d, bkgd)#todo
             ret['acc_map'] = torch.zeros([ray_d.shape[0]], device=ray_d.device)#todo
             ret['depth_raw'] = torch.zeros([ray_d.shape[0]], device=ray_d.device)#todo
+            ret['surf'] = torch.zeros([n_pixel, 3], device=ray_d.device)#todo
+            
             if self.split == 'train':
-                ret['normal_map'] = torch.zeros([ray_d.shape[0], 3], device=ray_d.device)
+                ret['normal_map'] = torch.zeros([ray_d.shape[0], 3], device=ray_d.device)#todo
+                ret['lvis_hit'] = torch.zeros([ray_d.shape[0], 1], device=ray_d.device)#todo
             print("ret_all == 0")#todo
             return ret
         raw_concat = concat(ret_all, dim=1, unsqueeze=False)
@@ -262,7 +278,7 @@ class BaseRenderer(nn.Module):
         #print (f"ray_d.shape: {ray_d.shape}")
         #print (f"ray_o.shape: {ray_o.shape}")   
         surf = ray_o + ray_d * depth.reshape(-1,1,1) # (N_rays,1, 3) xyz of the surface
-        if self.split == 'train':
+        if self.split == 'train' :
             with torch.no_grad():
                 ret['normal_map'] = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
                 normal = ret['normal_map']
@@ -490,11 +506,12 @@ class BaseRenderer(nn.Module):
                 batch['rgb'][0, idx] = 0.
         
         out = self.relight(batch, results, mode = self.split)
-        if self.split != 'train':
+        if self.split != 'train' :
             out["keys"] = keys
             out["acc_map"] = results["acc_map"]
             out["depth_map"] = results["depth_map"]
             out["instance_map"] = results["instance_map"]
+        print("render_base : out.keys(): ", out.keys())
         return out
 
     def compute_loss(self, batch, ret, **loss_kwargs):

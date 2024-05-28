@@ -120,9 +120,7 @@ class Visualizer:
         output = self.to_numpy(output)
         H, W = batch['meta']['H'], batch['meta']['W']
         K,R,T = batch['meta']['camera']['K'][0].detach().cpu().numpy(), batch['meta']['camera']['R'][0].detach().cpu().numpy(), batch['meta']['camera']['T'][0].detach().cpu().numpy()
-        print('K', K)
-        print('R', R)
-        print('T', T)
+        
         
         coord = batch['coord'][0].detach().cpu().numpy()
         if self.format == 'index':
@@ -269,7 +267,7 @@ class Visualizer:
             res[coord[:, 0], coord[:, 1]] = output[key][0]
             res = (np.clip(res, -1, 1.) + 1) * 127.5
             res = res.astype(np.uint8)
-            outputs[key] = res
+            outputs[key] = res[...,[2,1,0]]
             
         for key in ['lvis_map']:
             if key not in output.keys():continue
@@ -287,9 +285,17 @@ class Visualizer:
             print ("coord", coord.shape)    
             res[coord[:, 0], coord[:, 1]] = output[key][0]
             res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
-            outputs[key] = res
+            outputs[key] = res[...,[2,1,0]]
             
-        
+        for key in ['rgb_probes']:
+            if key not in output.keys():continue
+            print ("rgb_probes", output[key].shape)
+            print ("coord", coord.shape)
+            for i in range(output[key].shape[-2]):
+                res = np.zeros((H, W, 3))
+                res[coord[:, 0], coord[:, 1]] = output[key][0,...,i,:]
+                res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
+                outputs[key + f"_{i}"] = res[...,[2,1,0]].copy()
         
         if self.concat == 'none':
             for key, pred in outputs.items():
