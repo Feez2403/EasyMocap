@@ -296,11 +296,17 @@ class Visualizer:
                 res[coord[:, 0], coord[:, 1]] = output[key][0,...,i,:]
                 res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
                 outputs[key + f"_{i}"] = res[...,[2,1,0]].copy()
+                
+                alpha = np.zeros((H, W, 1))
+                maxs = output["acc_map"].shape[0]
+                alpha[coord[:maxs, 0], coord[:maxs, 1]] = output["acc_map"][:, None]
+                alpha = (np.clip(alpha, 0, 1.) * 255).astype(np.uint8)
+                outputs[f"rgba_probes_{i}"] = np.concatenate([outputs[key + f"_{i}"][...,[2,1,0]], alpha], axis=-1)
         
         if self.concat == 'none':
             for key, pred in outputs.items():
                 outname = join(self.data_dir, key+'_'+basename)
-                if key in ['rgba_map']:
+                if "rgba" in key:
                     outname += '.png'
                     Image.fromarray(pred, mode = "RGBA").save(outname)
                 else:

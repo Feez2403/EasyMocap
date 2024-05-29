@@ -109,7 +109,7 @@ def train(cfg):
             pass
         os.makedirs(cfg.recorder_args.log_dir, exist_ok=True)
         print(cfg, file=open(join(cfg.recorder_args.log_dir, 'exp.yml'), 'w'))
-        ckpt_epoch = -1
+        ckpt_epoch = 0
     logger = TensorBoardLogger(save_dir=cfg.recorder_args.log_dir, name=cfg.exp)
     ckpt_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,

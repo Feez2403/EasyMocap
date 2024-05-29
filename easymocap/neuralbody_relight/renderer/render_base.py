@@ -310,7 +310,7 @@ class BaseRenderer(nn.Module):
                     front_surf = surfflat[front_lit, :].reshape(-1,1,3) # ray origin ( N_rays * lpix_chunk,1, 3)
                     front_surf2light = surf2lightflat[front_lit, :].reshape(-1,1,3) # ray direction ( N_rays * lpix_chunk,1, 3)
                     lvis_far = torch.ones(front_surf.shape[:2],device=surf.device) * 0.5 # lvis_far = 20 (N_rays * lpix_chunk,1)
-                    lvis_near = torch.ones(front_surf.shape[:2],device=surf.device) * 0.0 # lvis_near = 0.0 (N_rays * lpix_chunk,1)
+                    lvis_near = torch.ones(front_surf.shape[:2],device=surf.device) * 0.03 # lvis_near = 0.0 (N_rays * lpix_chunk,1)
                     
                     #ret_all = []
                     #for key in object_keys:
@@ -511,7 +511,6 @@ class BaseRenderer(nn.Module):
             out["acc_map"] = results["acc_map"]
             out["depth_map"] = results["depth_map"]
             out["instance_map"] = results["instance_map"]
-        print("render_base : out.keys(): ", out.keys())
         return out
 
     def compute_loss(self, batch, ret, **loss_kwargs):

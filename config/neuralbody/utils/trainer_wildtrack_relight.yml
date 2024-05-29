@@ -26,21 +26,3 @@ trainer_args:
         start: 0
         end: 5000
 
-canonical:
-  renderer_module: easymocap.neuralbody_relight.renderer.render_base.BaseRenderer
-  renderer_args:
-    use_canonical: True
-    chunk: 8192
-    white_bkgd: False
-    use_occupancy: True
-    N_samples: 128
-    split: test
-
-mesh:
-  renderer_module: easymocap.neuralbody_relight.renderer.render_base.MeshRenderer
-  renderer_args:
-    chunk: 8192
-    white_bkgd: False
-    use_occupancy: True
-    N_samples: 32
-    split: test

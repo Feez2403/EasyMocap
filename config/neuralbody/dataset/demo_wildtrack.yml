@@ -9,7 +9,7 @@ data_demo_args:
     method: mean
     H: 1080
     W: 1920
-    allstep: 800
+    allstep: 300
     loop: True
   object_args:
     ground:

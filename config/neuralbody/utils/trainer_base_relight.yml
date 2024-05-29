@@ -24,7 +24,7 @@ renderer_args:
   
 train:
   ep_iter: 1000
-  epoch: 550
+  epoch: 660
   save_ep: 1
   save_latest_ep: 5
   eval_ep: 100

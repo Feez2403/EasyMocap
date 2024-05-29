@@ -123,7 +123,6 @@ class RelightModule(nn.Module):
                 #plt.show()
                 tensor = torch.from_numpy(arr).cuda()
                 novel_probes[name] = tensor
-                print("novel_probes: ", name, tensor.shape)
         self.novel_probes = novel_probes
     
     def _init_embedder(self):

@@ -225,9 +225,9 @@ def test(cfg):
     model.visualizer.data_dir = vis_out_dir
     model.visualizer.subs = cfg.data_val_args.subs
 
-    if cfg.split == 'test' or cfg.split == 'eval':
+    if cfg.split == 'test':
         dataset = load_object(cfg.data_val_module, cfg.data_val_args)
-    elif cfg.split in ['demo', 'canonical', 'novelposes']:
+    elif cfg.split in ['demo']:
         dataset = load_object(cfg['data_{}_module'.format(cfg.split)], cfg['data_{}_args'.format(cfg.split)])
         import json
         print('Save cameras to {}'.format(vis_out_dir))
@@ -240,12 +240,6 @@ def test(cfg):
                 ouput_dict[index] = {v : camera[v].tolist() for v in camera}
             json.dump(ouput_dict, f, indent=4)                  
                 
-    elif cfg.split == 'trainvis':
-        dataset = model.train_dataset
-        dataset.sample_args.nrays *= 16
-    ranges = cfg.get('visranges', [0, -1, 1])
-    if ranges[1] == -1:
-        ranges[1] = len(dataset)
 
     dataloader = torch.utils.data.DataLoader(dataset, 
         batch_size=1, num_workers=cfg.test.num_workers)
