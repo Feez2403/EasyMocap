@@ -247,7 +247,7 @@ class BaseRenderer(nn.Module):
             ret['acc_map'] = torch.zeros([ray_d.shape[0]], device=ray_d.device)#todo
             ret['depth_raw'] = torch.zeros([ray_d.shape[0]], device=ray_d.device)#todo
             ret['surf'] = torch.zeros([n_pixel, 3], device=ray_d.device)#todo
-            
+            ret['density_map'] = torch.zeros([ray_d.shape[0], 1], device=ray_d.device)#todo
             if self.split == 'train':
                 ret['normal_map'] = torch.zeros([ray_d.shape[0], 3], device=ray_d.device)#todo
                 ret['lvis_hit'] = torch.zeros([ray_d.shape[0], 1], device=ray_d.device)#todo
