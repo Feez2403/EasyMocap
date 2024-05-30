@@ -58,6 +58,8 @@ class plwrapper(pl.LightningModule):
     def forward(self, batch):
         # in lightning, forward defines the prediction/inference actions
         self.network.train()
+        self.test_renderer.train()
+        torch.set_grad_enabled(True)
         batch['step'] = self.trainer.global_step
         batch['meta']['step'] = self.trainer.global_step
         output = self.test_renderer(batch)
@@ -121,7 +123,9 @@ def train(cfg):
         trained_no_relight_dir = join("neuralbody","wildtrack_remapped","model","last.ckpt")
         resume_trainer_from_checkpoint = join(cfg.trained_model_dir, 'last.ckpt')
         ckpt_epoch = load_ckpt(model.network, trained_no_relight_dir, model_name='network')
-        for param in model.network.parameters():
+        
+        for n, param in model.network.named_parameters():
+            print (n)
             param.requires_grad = False
         model.train_renderer.renderer.net = model.network
         model.train_renderer.renderer.relight.net = model.network
@@ -255,7 +259,7 @@ def test(cfg):
         max_epochs=cfg.train.epoch,
         **extra_args
     )
-    preds = trainer.predict(model, dataloader)
+    preds = trainer.predict(model, dataloader, return_predictions=False)
 
 def parse(args, cfg):
     from os.path import join

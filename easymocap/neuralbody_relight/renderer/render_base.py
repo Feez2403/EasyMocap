@@ -205,7 +205,7 @@ class BaseRenderer(nn.Module):
             raw_output['instance'] = instance_
                     
             #density = raw_output['density']
-            if self.split == 'train' :
+            if self.split == 'train' or True:
                 with torch.no_grad():
                     #for param in self.net.model(key).parameters():
                     #    if param.requires_grad:
@@ -248,7 +248,7 @@ class BaseRenderer(nn.Module):
             ret['depth_raw'] = torch.zeros([ray_d.shape[0]], device=ray_d.device)#todo
             ret['surf'] = torch.zeros([n_pixel, 3], device=ray_d.device)#todo
             ret['density_map'] = torch.zeros([ray_d.shape[0], 1], device=ray_d.device)#todo
-            if self.split == 'train':
+            if self.split == 'train' or True:
                 ret['normal_map'] = torch.zeros([ray_d.shape[0], 3], device=ray_d.device)#todo
                 ret['lvis_hit'] = torch.zeros([ray_d.shape[0], 1], device=ray_d.device)#todo
             print("ret_all == 0")#todo
@@ -278,10 +278,12 @@ class BaseRenderer(nn.Module):
         #print (f"ray_d.shape: {ray_d.shape}")
         #print (f"ray_o.shape: {ray_o.shape}")   
         surf = ray_o + ray_d * depth.reshape(-1,1,1) # (N_rays,1, 3) xyz of the surface
+        
+        with torch.no_grad():
+            ret['normal_map'] = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
+            normal = ret['normal_map']
         if self.split == 'train' :
             with torch.no_grad():
-                ret['normal_map'] = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
-                normal = ret['normal_map']
         
                 light_xyz, _ = gen_light_xyz(8,16)
                 
@@ -404,10 +406,16 @@ class BaseRenderer(nn.Module):
         viewdir = batch['viewdirs'][0].unsqueeze(1)
         retlist = []
         for bn in range(0, viewdir.shape[0], self.chunk):
-            #print(f"bn: {bn} / {viewdir.shape[0]}")
+            
+            print(f"bn: {bn} / {viewdir.shape[0]}")
             start, end = bn, min(bn + self.chunk, viewdir.shape[0])
             ret = self.batch_forward(batch, viewdir, start, end, bkgd)
             if ret is not None:
+                if self.split != 'train':
+                    for key in ret.keys():
+                        if isinstance(ret[key], torch.Tensor):
+                            ret[key] = ret[key].detach()
+                        
                 retlist.append(ret)
             
         
@@ -504,8 +512,11 @@ class BaseRenderer(nn.Module):
                 batch['rgb'][0, idx] = rand_bkgd
             else:
                 batch['rgb'][0, idx] = 0.
-        
-        out = self.relight(batch, results, mode = self.split)
+        if self.split != 'train':
+            with torch.no_grad():
+                out = self.relight(batch, results, mode = self.split)
+        else:
+            out = self.relight(batch, results, mode = self.split)
         if self.split != 'train' :
             out["keys"] = keys
             out["acc_map"] = results["acc_map"]

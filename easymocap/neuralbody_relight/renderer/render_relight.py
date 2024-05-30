@@ -154,12 +154,12 @@ class RelightModule(nn.Module):
         
         net['latent_fc'] = nn.Linear(256, 256)
         # Normals
-        net['normal_mlp'] = MLP(
-            feature_dim + 2*self.n_freqs_xyz*3+3, [mlp_width]*mlp_depth, act=['relu']*mlp_depth, skip_at=[mlp_skip_at]
-        )
-        net['normal_out'] = MLP(
-            mlp_width, [3], act=None
-        )
+        #net['normal_mlp'] = MLP(
+        #    feature_dim + 2*self.n_freqs_xyz*3+3, [mlp_width]*mlp_depth, act=['relu']*mlp_depth, skip_at=[mlp_skip_at]
+        #)
+        #net['normal_out'] = MLP(
+        #    mlp_width, [3], act=None
+        #)
         net['lvis_mlp'] = MLP(
             feature_dim + 2*self.n_freqs_xyz*3+3+2*self.n_freqs_ldir*3+3, [mlp_width]*mlp_depth, act=['relu']*mlp_depth, skip_at=[mlp_skip_at]
         )
@@ -385,6 +385,7 @@ class RelightModule(nn.Module):
         keys            = result['keys'] # list of keys
         latent_features = result['latent_features'] # dict of features per person
         #gt
+        normal_gt = result['normal_map']   # (1, nray, 3)
         if mode == 'train':
             normal_map          = result['normal_map']   # (1, nray, 3)
             lvis_hit_map            = result['lvis_hit']     # (1, nray, nlights)
@@ -490,14 +491,16 @@ class RelightModule(nn.Module):
             
             surf2cam = self._get_vdir(rayo.float(), xyz)
             
-            normal_pred = self._pred_normal_at(net, xyz, features)
-            if xyz_noise is None:
-                normal_jitter = None
-            else:
-                normal_jitter = self._pred_normal_at(net, xyz + xyz_noise, features_jitter)
-            normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1, eps=1e-7)
-            if normal_jitter is not None:
-                normal_jitter = torch.nn.functional.normalize(normal_jitter, p=2, dim=-1, eps=1e-7)
+            #normal_pred = self._pred_normal_at(net, xyz, features)
+            #if xyz_noise is None:
+            #    normal_jitter = None
+            #else:
+            #    normal_jitter = self._pred_normal_at(net, xyz + xyz_noise, features_jitter)
+            #normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1, eps=1e-7)
+            #if normal_jitter is not None:
+            #    normal_jitter = torch.nn.functional.normalize(normal_jitter, p=2, dim=-1, eps=1e-7)
+            normal_pred = normal_gt[mask]
+            normal_jitter = normal_pred
 
             lvis_pred = torch.zeros((xyz.shape[1], self.NLights), device=torch.device('cuda:0'))
             chunk_size = 16384
