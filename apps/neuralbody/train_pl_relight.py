@@ -7,6 +7,7 @@ from torch.optim.optimizer import Optimizer
 # on linux with NCCL just remove this line
 os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
 from os.path import join
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 from easymocap.mytools.debug_utils import myerror
 import torch
@@ -125,7 +126,7 @@ def train(cfg):
         ckpt_epoch = load_ckpt(model.network, trained_no_relight_dir, model_name='network')
         
         for n, param in model.network.named_parameters():
-            print (n)
+            print(n)
             param.requires_grad = False
         model.train_renderer.renderer.net = model.network
         model.train_renderer.renderer.relight.net = model.network

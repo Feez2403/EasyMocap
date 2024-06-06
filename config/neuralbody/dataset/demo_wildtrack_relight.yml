@@ -21,5 +21,5 @@ data_demo_args:
       start:
         frame: [0, 300, 1]
         view: [0, 300, 1]
-        object_keys: [human_0, human_1, human_2, human_3, human_7, human_9, human_10]
+        object_keys: [human_0, human_1, human_2, human_3, human_7]
       

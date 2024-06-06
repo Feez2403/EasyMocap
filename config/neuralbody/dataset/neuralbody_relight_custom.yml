@@ -15,7 +15,6 @@ data_share_args:
   object_keys: []
   ignore_keys: []
   object_args:
-    # 定义了object
     allhuman:
       pids: [0]
       model: neuralbody

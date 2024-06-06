@@ -2,6 +2,7 @@
 from os.path import basename
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from ..brdf.microfacet import Microfacet
 from ..model.embedder import Embedder
@@ -33,7 +34,7 @@ class RelightModule(nn.Module):
         self.NLights = self.light_h*self.light_h*2
         self.xyz_jitter_std= 0.01
         self.smooth_use_l1= True
-        self.olat_inten= 200.
+        self.olat_inten= 50.
         self.ambient_inten= 0.
         self.normal_loss_weight= 1.
         self.lvis_loss_weight= 1.
@@ -55,11 +56,14 @@ class RelightModule(nn.Module):
         self.normalize_z= False
         self.fresnel_f0= 0.04
         self.fix_light= True
+        # Use Gaussian light
+        self.gaussian_light= True
+        
         self.lvis_far= 0.5
         self.lvis_near= 0.0
         self.perturb_light= 0.0
         #self.albedo_sparsity= 0.0005
-        self.albedo_sparsity= 0.0
+        self.albedo_sparsity= 0.0005
         
         self.z_dim = 1
         self.shape_mode = "scratch"
@@ -89,19 +93,39 @@ class RelightModule(nn.Module):
         lxyz, lareas = self._gen_lights()
         self.lxyz, self.lareas = lxyz, lareas
         maxv = self.light_init_max
-        if self.achro_light:
-            light = torch.randn(self.light_res + (1,))*maxv
-        else:
-            light = torch.randn(self.light_res + (3,))*maxv
-        self._light = nn.parameter.Parameter(light)
+        
+        if self.gaussian_light:
+            #gaussian_light
+            light_pos = torch.rand(2) * torch.Tensor(self.light_res).float() # xy position of the gaussian
+            light_intensity = torch.rand(1) * 3 # intensity of the gaussian
+            light_sigma = torch.rand(1) * 0.5 + 0.5 # sigma of the gaussian
+            light_ambient = torch.rand(1) * 0.5  # ambient light, constant term
+
+            self.pos = torch.nn.Parameter(light_pos.cuda())
+            self.intens = torch.nn.Parameter(light_intensity.cuda())
+            self.sigma = torch.nn.Parameter(light_sigma.cuda())
+            self.ambient = torch.nn.Parameter(light_ambient.cuda())
+               
+            
+        else :
+            if self.achro_light:
+                light = torch.abs(torch.randn(self.light_res + (1,))*maxv)
+            else:
+                light = torch.abs(torch.randn(self.light_res + (3,))*maxv)
+            self._light = nn.parameter.Parameter(light)
+            
+        
+        
         # Novel lighting conditions for relighting at test time:
         # (1) OLAT
+        self.do_relight_olat = True
+        
         novel_olat = OrderedDict()
         light_shape = self.light_res + (3,)
         olat_inten = self.olat_inten
         ambient_inten = self.ambient_inten
         ambient = ambient_inten*torch.ones(light_shape, device=torch.device('cuda:0'))
-        olats = [27, 91, 149, 200, 288, 333, 398, 488]
+        olats = [ 10,  22,  37,  63,  64,  84,  99, 121] # light index, randomly selected
         idx = -1
         for i in range(self.light_res[0]):
             for j in range(self.light_res[1]):
@@ -109,10 +133,13 @@ class RelightModule(nn.Module):
                 if idx in olats:
                     one_hot = one_hot_img(*ambient.shape, i, j)
                     envmap = olat_inten * one_hot + ambient
+                    #plt.imshow(arr)
+                    #plt.show()
                     novel_olat['%04d-%04d' % (i, j)] = envmap
         self.novel_olat = novel_olat
         # (2) Light probes
         self.do_relight_probes = True
+        
         novel_probes = OrderedDict()
         for path in sorted(os.listdir('light-probes/')):
             if '.hdr' in path:
@@ -200,26 +227,11 @@ class RelightModule(nn.Module):
         microfacet = Microfacet(f0=fresnel_f0)
         brdf = microfacet(pts2l, pts2c, normal, albedo=albedo, rough=rough)
         return brdf # NxLx3
-
-    def _brdf_prop_as_img(self, brdf_prop):
-        """Roughness in the microfacet BRDF.
-
-        Input and output are both NumPy arrays, not tensors.
-        """
-        z_rgb = np.concatenate([brdf_prop] * 3, axis=2)
-        return z_rgb
                  
     def _gen_lights(self):
         light_h = int(self.light_h)
         light_w = int(light_h * 2)
         lxyz, lareas = gen_light_xyz(light_h, light_w)
-        #if 'xyzc' in self.exp_name or 'zju' in self.exp_name:
-        #    print("zju-mocap:{}, using different lighting......".format(self.exp_name))
-        #    lxyz[...,1] = -lxyz[...,1]
-        #    lxyz[...,0] = -lxyz[...,0]
-        #else:
-        #    lxyz = lxyz[..., [0, 2, 1]]
-        #    lxyz[...,1] = -lxyz[...,1]
         lxyz = torch.from_numpy(lxyz).float().cuda()
         lareas = torch.from_numpy(lareas).float().cuda()
         return lxyz, lareas
@@ -357,7 +369,25 @@ class RelightModule(nn.Module):
     def light(self):
         # No negative light
         if self.fix_light:
-            return torch.ones(self.light_res + (3,)).to(self._light) + self._light.repeat(1,1,3)
+            if self.gaussian_light:
+                
+                positions = torch.meshgrid(torch.arange(self.light_res[0]).cuda(), torch.arange(self.light_res[1]).cuda())
+                xs, ys = positions
+                xs = xs.float()
+                ys = ys.float()
+                
+                dy = torch.abs(ys - self.pos[1])
+                dy = torch.min(dy, self.light_res[1] - dy)
+                
+                distance = torch.sqrt((xs - self.pos[0])**2 + dy**2)
+                gaussian = torch.exp(-distance / F.relu(self.sigma))
+                light = F.relu(self.intens) * gaussian + F.relu(self.ambient)
+                
+                assert light.all() >= 0
+                return light.unsqueeze(-1).repeat(1, 1, 3)
+                
+            else:
+                return torch.ones(self.light_res + (3,)).to(self._light) + self._light.repeat(1,1,3)
         else:
             if self.perturb_light > 0:
                 light_noise = torch.normal(mean=0, std=self._light.max().item() / self.perturb_light, size=self.light_res + (3,)).to(self._light)
@@ -369,7 +399,7 @@ class RelightModule(nn.Module):
                 return torch.clip(self._light, min=0., max=1e6) + light_noise
 
 
-    def forward(self, batch, result, mode='train', relight_olat=False, relight_probes=True, albedo_scale=None, albedo_override=None, brdf_z_override=None):
+    def forward(self, batch, result, mode='train', relight_olat=True, relight_probes=True, albedo_scale=None, albedo_override=None, brdf_z_override=None):
         
         xyz_jitter_std = self.xyz_jitter_std
         #id_, hw, rayo, _, rgb, alpha, xyz, normal, lvis, raw_batch = batch
@@ -410,7 +440,8 @@ class RelightModule(nn.Module):
         
         if self.do_relight_probes:
             pred_rgb_probes = torch.zeros((surf_map.shape[0], surf_map.shape[1], len(self.novel_probes), 3), device=torch.device('cuda:0'))
-        
+        if self.do_relight_olat:
+            pred_olat = torch.zeros((surf_map.shape[0], surf_map.shape[1], len(self.novel_olat), 3), device=torch.device('cuda:0'))
         
         
         argmax_instances = torch.argmax(instance_map, dim=-1)
@@ -466,7 +497,7 @@ class RelightModule(nn.Module):
             
             ret_mask[mask] = True
             
-            if self.training and xyz_jitter_std > 0.:
+            if self.training and mode == 'train' and xyz_jitter_std > 0.:
                 xyz_noise = torch.normal(mean=0, std=xyz_jitter_std, size=xyz.shape).to(xyz)
                 xyz_jittered = xyz + xyz_noise
             else:
@@ -526,7 +557,7 @@ class RelightModule(nn.Module):
             else:
                 albedo_jitter = self._pred_albedo_at(net, xyz + xyz_noise, features_jitter)
 
-            if False :
+            if True :
                 brdf_prop = self._pred_brdf_at(net, xyz, features)
                 if xyz_noise is None:
                     brdf_prop_jitter = None
@@ -536,17 +567,19 @@ class RelightModule(nn.Module):
                     brdf_prop = torch.nn.functional.normalize(brdf_prop, p=2, dim=-1, eps=1e-7)
                     if brdf_prop_jitter is not None:
                         brdf_prop_jitter = torch.nn.functional.normalize(brdf_prop_jitter, p=2, dim=-1, eps=1e-7)
+                brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
             else:
                 brdf_prop = torch.zeros_like(albedo)
                 brdf_prop_jitter = torch.zeros_like(albedo)
+                brdf = albedo[ :, None, :].repeat(1, self.NLights, 1) / np.pi # NxLx3 Default Lambertian BRDF
                 ##print("eval_brdf_at")
-            #brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
             
-            brdf = albedo[ :, None, :].repeat(1, self.NLights, 1) / np.pi # NxLx3 Default Lambertian BRDF
             
             #print("_render")
             # rendering
-            rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, relight_olat=relight_olat, relight_probes=self.do_relight_probes and mode != 'train')
+            rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, 
+                                                               relight_olat=self.do_relight_olat and mode != 'train', 
+                                                               relight_probes=self.do_relight_probes and mode != 'train')
 
                        
             pred_rgb[mask] = rgb_pred
@@ -566,21 +599,33 @@ class RelightModule(nn.Module):
             #    pred['rgb_olat'] = rgb_olat
             if rgb_probes is not None:
                 pred_rgb_probes[mask] = rgb_probes 
+            if rgb_olat is not None:
+                pred_olat[mask] = rgb_olat
         
         
         if mode != 'train':
+            light = self.light()
+            print("light.shape: ", light.shape)
+            print("light min, max, mean: ", light.min(), light.max(), light.mean())
+            plt.imshow(light.detach().cpu().numpy())
+            plt.show()
+            
+            
             ret_mask = ret_mask.unsqueeze(-1)
             pred_rgb = torch.where(ret_mask, pred_rgb, torch.zeros_like(pred_rgb))
             pred_normal = torch.where(ret_mask, pred_normal, torch.zeros_like(pred_normal))
             pred_lvis = torch.where(ret_mask, pred_lvis, torch.zeros_like(pred_lvis))
             pred_albedo = torch.where(ret_mask, pred_albedo, torch.zeros_like(pred_albedo))
             pred_brdf =  torch.where(ret_mask, pred_brdf, torch.zeros_like(pred_brdf))
-            if rgb_probes is not None:
-                
+            if rgb_probes is not None:                
                 pred_rgb_probes = torch.where(ret_mask[..., None], pred_rgb_probes, torch.zeros_like(pred_rgb_probes))
+            
+            if rgb_olat is not None:
+                pred_olat = torch.where(ret_mask[..., None], pred_olat, torch.zeros_like(pred_olat))
         
             return {'rgb_map': pred_rgb[None,:], 'normal_map': pred_normal[None,:], 'lvis_map': pred_lvis[None,:], 
-                    'albedo_map': pred_albedo[None,:], 'brdf_map': pred_brdf[None,:], 'rgb_probes': pred_rgb_probes[None,:]}
+                    'albedo_map': pred_albedo[None,:], 'brdf_map': pred_brdf[None,:], 
+                    'rgb_probes': pred_rgb_probes[None,:], 'olat': pred_olat[None,:]}
         
         
         pred_rgb = pred_rgb[ret_mask]
@@ -682,9 +727,7 @@ class RelightModule(nn.Module):
             light = lvis[:, :, None] * light_flat[None, :, :] # NxLx3
             light_pix_contrib = brdf * light * lcos[:, :, None] * areas # NxLx3
             rgb = torch.sum(light_pix_contrib, dim=1) #Nx3
-            # Tonemapping
             rgb = torch.clip(rgb, 0., 1.)
-            # Colorspace transform
             if linear2srgb:
                 rgb = func_linear2srgb(rgb)
             return rgb
@@ -771,19 +814,19 @@ class RelightModule(nn.Module):
             loss += self.brdf_smooth_weight * brdf_smooth_loss
 
         # Light should be smooth
-        if mode == 'train':
-            light = self.light()
-            # Spatial TV penalty
-            if light_tv_weight > 0:
-                dx = light - torch.roll(light, 1, 1)
-                dy = light - torch.roll(light, 1, 0)
-                tv = torch.sum(dx ** 2 + dy ** 2)
-                loss += light_tv_weight * tv
-            # Cross-channel TV penalty
-            if light_achro_weight > 0:
-                dc = light - torch.roll(light, 1, 2)
-                tv = torch.sum(dc ** 2)
-                loss += light_achro_weight * tv
+        #if mode == 'train':
+            #light = self.light()
+            ## Spatial TV penalty
+            #if light_tv_weight > 0:
+            #    dx = light - torch.roll(light, 1, 1)
+            #    dy = light - torch.roll(light, 1, 0)
+            #    tv = torch.sum(dx ** 2 + dy ** 2)
+            #    loss += light_tv_weight * tv
+            ## Cross-channel TV penalty
+            #if light_achro_weight > 0:
+            #    dc = light - torch.roll(light, 1, 2)
+            #    tv = torch.sum(dc ** 2)
+            #    loss += light_achro_weight * tv
 
         
         if self.albedo_sparsity > 0:

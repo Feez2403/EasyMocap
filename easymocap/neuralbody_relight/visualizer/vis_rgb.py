@@ -303,6 +303,32 @@ class Visualizer:
                 alpha = (np.clip(alpha, 0, 1.) * 255).astype(np.uint8)
                 outputs[f"rgba_probes_{i}"] = np.concatenate([outputs[key + f"_{i}"][...,[2,1,0]], alpha], axis=-1)
         
+        for key in ['olat']:
+            if key not in output.keys():continue
+            print ("olat", output[key].shape)
+            print ("coord", coord.shape)
+            for i in range(output[key].shape[-2]):
+                res = np.zeros((H, W, 3))
+                res[coord[:, 0], coord[:, 1]] = output[key][0,...,i,:]
+                res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
+                outputs[key + f"_{i}"] = res[...,[2,1,0]].copy()
+                
+                alpha = np.zeros((H, W, 1))
+                maxs = output["acc_map"].shape[0]
+                alpha[coord[:maxs, 0], coord[:maxs, 1]] = output["acc_map"][:, None]
+                alpha = (np.clip(alpha, 0, 1.) * 255).astype(np.uint8)
+                outputs[f"rgba_olat_{i}"] = np.concatenate([outputs[key + f"_{i}"][...,[2,1,0]], alpha], axis=-1)
+        
+        for key in ['brdf_map']:
+            if key not in output.keys():continue
+            res = np.zeros((H, W, 3))
+            print ("brdf_map", output[key].shape)
+            print ("coord", coord.shape)    
+            res[coord[:, 0], coord[:, 1]] = output[key][0]
+            res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
+            outputs[key] = res[...,[2,1,0]]
+            
+        
         if self.concat == 'none':
             for key, pred in outputs.items():
                 outname = join(self.data_dir, key+'_'+basename)

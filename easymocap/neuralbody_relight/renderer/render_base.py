@@ -355,12 +355,60 @@ class BaseRenderer(nn.Module):
                     #lvis_outputs = raw2outputs(raw_sorted, z_vals_sorted, front_surf2light, bkgd)
     #
                     #lvis_acc = lvis_outputs['acc_map']
+                    if key != "ground":
+                    
+                        lvis_z, lvis_pts, lvis_raw_output = model.calculate_density_from_ray(
+                                front_surf, front_surf2light, lvis_near, lvis_far, self.split)
+                        lvis_outputs = raw2outputs(lvis_raw_output, lvis_z[..., 0], front_surf2light, bkgd)
+                        lvis_acc = lvis_outputs['acc_map']
+                        
+                    else : 
+                        lvis_far = torch.ones(front_surf.shape[:2],device=surf.device) * 2.5 # lvis_far = 20 (N_rays * lpix_chunk,1)
+                        lvis_near = torch.ones(front_surf.shape[:2],device=surf.device) * 0.03 # lvis_near = 0.0 (N_rays * lpix_chunk,1)
+                        ret_all = []
+                        for key in object_keys:
+                            if key in ["ground", "background"]:
+                                continue
+                            
+                            model_ = self.net.model(key)
+                            model_.current = key
+                        
+                            
+                            #print(f"key: {key}")
+                            lvis_z, lvis_pts, lvis_raw_output = model_.calculate_density_from_ray(
+                                front_surf, front_surf2light, lvis_near, lvis_far, self.split)
+                            #print(f"lvis_z.shape: {lvis_z.shape}")
+                            #print(f"lvis_pts.shape: {lvis_pts.shape}")
+                            #print(f"lvis_raw_output.keys: {lvis_raw_output.keys()}")
+                            lvis_raw_output['z_vals'] = lvis_z[..., 0]
+                                                
+                            ret_all.append(lvis_raw_output)
+                                            #
+                        if len(ret_all) == 0:
+                            print("ret_all_light == 0")
+                            continue
+                                            #
+                        raw_concat = concat(ret_all, dim=1, unsqueeze=False)
+                        z_vals = raw_concat.pop('z_vals')
+                        z_vals_sorted, indices = torch.sort(z_vals, dim=-1)
+                                            #
+                        ind_0 = torch.zeros_like(indices, device=indices.device)
+                        ind_0 = ind_0 + torch.arange(0, indices.shape[0], device=indices.device).reshape(-1, 1)
+                        raw_sorted = {}
+                        for key, val in raw_concat.items():
+                            val_sorted = val[ind_0, indices]
+                            raw_sorted[key] = val_sorted
+                            #print(f"raw_sorted[{key}].shape: {raw_sorted[key].shape}")
+                                            #
+                        lvis_outputs = raw2outputs(raw_sorted, z_vals_sorted, front_surf2light, bkgd)
+                        lvis_acc = lvis_outputs['acc_map']
+                            
                     
                     
-                    lvis_z, lvis_pts, lvis_raw_output = model.calculate_density_from_ray(
-                            front_surf, front_surf2light, lvis_near, lvis_far, self.split)
-                    lvis_outputs = raw2outputs(lvis_raw_output, lvis_z[..., 0], front_surf2light, bkgd)
-                    lvis_acc = lvis_outputs['acc_map']
+                    #lvis_z, lvis_pts, lvis_raw_output = model.calculate_density_from_ray(
+                    #        front_surf, front_surf2light, lvis_near, lvis_far, self.split)
+                    #lvis_outputs = raw2outputs(lvis_raw_output, lvis_z[..., 0], front_surf2light, bkgd)
+                    #lvis_acc = lvis_outputs['acc_map']
                     
                     tmp = torch.zeros(lvis_hit.shape, dtype=bool)
                     front_lit = front_lit.reshape(n_pixel, lpix_chunk)
