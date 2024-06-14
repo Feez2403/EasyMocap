@@ -202,7 +202,8 @@ class Nerf(Base):
             if i in self.skips:
                 h = torch.cat([inp, h], self.cat_dim)
         
-        feature = self.feature_linear(h)
+        #feature = self.feature_linear(h)
+        feature = h
         return feature
         
 class MultiLinear(nn.Module):

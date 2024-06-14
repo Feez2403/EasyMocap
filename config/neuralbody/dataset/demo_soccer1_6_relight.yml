@@ -1,0 +1,25 @@
+parents:
+  - config/neuralbody/dataset/neuralbody_relight_soccer.yml
+
+data_demo_args:
+  split: demo
+  image_args:
+    scale: 1
+  camera_args:
+    method: mean
+    H: 1080
+    W: 1920
+    allstep: 300
+    loop: True
+  object_args:
+    ground:
+      args:
+        xybounds: [-5, 5]
+  demo_args:
+    mode: scripts
+    stages:
+      start:
+        frame: [0, 300, 1]
+        view: [0, 300, 1]
+        object_keys: [human_0, human_1, human_2, human_3, human_4, human_5]
+      

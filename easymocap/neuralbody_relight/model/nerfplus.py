@@ -52,6 +52,10 @@ class NeRFT(Nerf):
         latents = {'time': self.cache['embed']}
         return super().calculate_density(wpts, latents, **kwargs)
     
+    def gradient(self, wpts, **kwargs):
+        outputs = self.calculate_density(wpts, **kwargs)
+        return torch.autograd.grad(outputs['occupancy'], wpts, create_graph=True)[0]
+    
     def get_feature(self, wpts, sparse_feature):
         # feature_volume = self.encode_sparse_voxels(sp_input)
         # calculate density

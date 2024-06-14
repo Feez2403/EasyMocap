@@ -281,6 +281,12 @@ class Network(Nerf):
             outputs_all[key] = padding.view(*wpts.shape[:-1], val.shape[-1])
         return outputs_all
     
+    def gradient(self, wpts, **kwargs):
+        outputs = self.calculate_density(wpts, **kwargs)
+        return torch.autograd.grad(outputs['occupancy'], wpts, create_graph=True)[0]
+        
+        
+    
     def get_feature(self, wpts, sparse_feature):
         # feature_volume = self.encode_sparse_voxels(sp_input)
         wpts_flat = wpts.reshape(-1, 3)

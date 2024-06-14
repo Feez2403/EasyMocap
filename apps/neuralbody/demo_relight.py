@@ -75,7 +75,7 @@ def neuralbody_train(data, config, mode, exp=None):
             log('No demo results found')
         else:
             newest = demolists[-1]
-            for key in ['rgb_map', 'acc_map', 'feat_map']:
+            for key in ['rgb_map', 'acc_map', 'feat_map', 'normal_map', 'depth_map', 'albedo_map', 'brdf_map'] + ['rgba_olat_{}'.format(i) for i in range(8)] + ['rgba_probes_{}'.format(i) for i in range(10)]: 
                 cmd = f'ffmpeg -y -i {newest}/{key}_%06d.jpg -vcodec libx264 -pix_fmt yuv420p {newest}_{key}.mp4 -loglevel quiet'
                 run_cmd(cmd)
         return 0

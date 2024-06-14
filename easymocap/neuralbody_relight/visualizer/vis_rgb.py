@@ -325,7 +325,7 @@ class Visualizer:
             print ("brdf_map", output[key].shape)
             print ("coord", coord.shape)    
             res[coord[:, 0], coord[:, 1]] = output[key][0]
-            res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
+            res = (np.clip(np.abs(res), 0, 1.) * 255).astype(np.uint8)
             outputs[key] = res[...,[2,1,0]]
             
         

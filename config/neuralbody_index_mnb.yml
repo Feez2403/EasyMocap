@@ -347,6 +347,24 @@ soccer1_6:
     - network_args.models.allball.network_args.share_view
     - True
 
+soccer1_6_relight:
+  comment: "[mvmp] Neuralbody + background in the wild + relight"
+  data: config/neuralbody/dataset/demo_soccer1_6_relight.yml
+  model: config/neuralbody/network/comp_neuralbody_relight+back+soccer.yml
+  base: config/neuralbody/utils/train_base.yml
+  trainer: config/neuralbody/utils/trainer_soccer_relight.yml
+  visualizer: config/neuralbody/utils/vis_multi_relight.yml
+  opts_dict:
+    data_share_args:
+      sample_args:
+        nrays: 2048
+      ranges: [0, 300, 1]
+  opts:
+    - data_share_args.object_args.allhuman.pids
+    - [0, 1, 2, 3, 4, 5]
+    - network_args.models.allhuman.pids
+    - [0, 1, 2, 3, 4, 5]
+
 wildtrack:
   comment: "[mvmp] Neuralbody + background in the wild"
   data: config/neuralbody/dataset/demo_wildtrack.yml

@@ -70,6 +70,12 @@ class RelightModule(nn.Module):
         self.normalize_brdf_z = False
         self.use_shape_sup = True
         
+        self.predict_normals = True
+        
+        self.predict_normals_lvis_only = True
+        
+        if self.predict_normals_lvis_only:
+            assert self.predict_normals
         
         self.train_relight= True
         
@@ -180,13 +186,15 @@ class RelightModule(nn.Module):
         net = nn.ModuleDict()
         
         net['latent_fc'] = nn.Linear(256, 256)
+        if self.predict_normals:
         # Normals
-        #net['normal_mlp'] = MLP(
-        #    feature_dim + 2*self.n_freqs_xyz*3+3, [mlp_width]*mlp_depth, act=['relu']*mlp_depth, skip_at=[mlp_skip_at]
-        #)
-        #net['normal_out'] = MLP(
-        #    mlp_width, [3], act=None
-        #)
+            net['normal_mlp'] = MLP(
+                feature_dim + 2*self.n_freqs_xyz*3+3, [mlp_width]*mlp_depth, act=['relu']*mlp_depth, skip_at=[mlp_skip_at]
+            )
+            net['normal_out'] = MLP(
+                mlp_width, [3], act=None
+            )
+            
         net['lvis_mlp'] = MLP(
             feature_dim + 2*self.n_freqs_xyz*3+3+2*self.n_freqs_ldir*3+3, [mlp_width]*mlp_depth, act=['relu']*mlp_depth, skip_at=[mlp_skip_at]
         )
@@ -405,8 +413,6 @@ class RelightModule(nn.Module):
         #id_, hw, rayo, _, rgb, alpha, xyz, normal, lvis, raw_batch = batch
         #print ("batch: ", batch.keys())
         
-        
-        
         alpha_map           = result['acc_map']      # (1, nray)
         depth_map       = result['depth_map']    # (1, nray)
         density_map     = result['density_map']  # (1, nray, 1)
@@ -425,7 +431,7 @@ class RelightModule(nn.Module):
         
         
         
-        ret_mask = torch.zeros_like(alpha_map, dtype=torch.bool)
+        ret_mask = torch.zeros_like(alpha_map, dtype=torch.bool) # (1, nray)
         
         pred_rgb = torch.zeros_like(surf_map)
         pred_normal = torch.zeros_like(surf_map)
@@ -460,7 +466,7 @@ class RelightModule(nn.Module):
             elif "ground" in key:
                 sparse_features = {"latent_time":sparse_features}
             
-            mask = (argmax_instances == i) & (alpha_map > 0)
+            mask = (argmax_instances == i) & (alpha_map > 0.5)
             #print("mask: ", mask.shape)
             if mask.sum() == 0:
                 print("mask.sum() == 0 for key: ", key)
@@ -487,12 +493,11 @@ class RelightModule(nn.Module):
             
             
             
-            
             #print("key: ", key)
             
             # Nx3 to 1xNx3
             xyz = surf_map[mask].reshape(1, -1, 3)
-            #print ("xyz: ", xyz.shape)
+            
             rayo = ray_o[mask]#.reshape(1, -1, 3)
             
             ret_mask[mask] = True
@@ -503,6 +508,8 @@ class RelightModule(nn.Module):
             else:
                 xyz_noise = None
             
+            
+            # get the feature volume from the pretrained model
             with torch.no_grad():
                 nerf_net = self.net.models[key]
                 features, valid_mask = nerf_net.get_feature(xyz, sparse_features)
@@ -522,18 +529,22 @@ class RelightModule(nn.Module):
             
             surf2cam = self._get_vdir(rayo.float(), xyz)
             
-            #normal_pred = self._pred_normal_at(net, xyz, features)
-            #if xyz_noise is None:
-            #    normal_jitter = None
-            #else:
-            #    normal_jitter = self._pred_normal_at(net, xyz + xyz_noise, features_jitter)
-            #normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1, eps=1e-7)
-            #if normal_jitter is not None:
-            #    normal_jitter = torch.nn.functional.normalize(normal_jitter, p=2, dim=-1, eps=1e-7)
-            normal_pred = normal_gt[mask]
-            normal_jitter = normal_pred
+            if self.predict_normals:
+                normal_pred = self._pred_normal_at(net, xyz, features)
+                if xyz_noise is None:
+                    normal_jitter = None
+                else:
+                    normal_jitter = self._pred_normal_at(net, xyz_jittered, features_jitter)
+                normal_pred = torch.nn.functional.normalize(normal_pred, p=2, dim=-1, eps=1e-7)
+                if normal_jitter is not None:
+                    normal_jitter = torch.nn.functional.normalize(normal_jitter, p=2, dim=-1, eps=1e-7)
+            else:
+                normal_pred = normal_gt[mask]
+                normal_jitter = normal_pred
 
             lvis_pred = torch.zeros((xyz.shape[1], self.NLights), device=torch.device('cuda:0'))
+            
+            # For demo, we chunk to avoid Out of Memory error
             chunk_size = 16384
             for chunk in range(0, xyz.shape[1], chunk_size):
                 chunk_end = min(xyz.shape[1], chunk + chunk_size)                
@@ -545,70 +556,78 @@ class RelightModule(nn.Module):
                 lvis_pred[chunk:chunk_end] = lvis_pred_chunk
                 
             #lvis_pred = self._pred_lvis_at(net, xyz, surf2light, features)
+            
+            # Jitter only for training, no need to chunk
             if xyz_noise is None:
                 lvis_jitter = None
             else:
-                lvis_jitter = self._pred_lvis_at(net, xyz + xyz_noise, surf2light, features_jitter)
+                lvis_jitter = self._pred_lvis_at(net, xyz_jittered, surf2light, features_jitter)
 
             # albedo
-            albedo = self._pred_albedo_at(net, xyz, features)
-            if xyz_noise is None:
-                albedo_jitter = None
-            else:
-                albedo_jitter = self._pred_albedo_at(net, xyz + xyz_noise, features_jitter)
-
-            if True :
-                brdf_prop = self._pred_brdf_at(net, xyz, features)
+            
+            if not self.predict_normals_lvis_only:
+                albedo = self._pred_albedo_at(net, xyz, features)
                 if xyz_noise is None:
-                    brdf_prop_jitter = None
+                    albedo_jitter = None
                 else:
-                    brdf_prop_jitter = self._pred_brdf_at(net, xyz + xyz_noise, features_jitter)
-                if self.normalize_brdf_z:
-                    brdf_prop = torch.nn.functional.normalize(brdf_prop, p=2, dim=-1, eps=1e-7)
-                    if brdf_prop_jitter is not None:
-                        brdf_prop_jitter = torch.nn.functional.normalize(brdf_prop_jitter, p=2, dim=-1, eps=1e-7)
-                brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
-            else:
-                brdf_prop = torch.zeros_like(albedo)
-                brdf_prop_jitter = torch.zeros_like(albedo)
-                brdf = albedo[ :, None, :].repeat(1, self.NLights, 1) / np.pi # NxLx3 Default Lambertian BRDF
-                ##print("eval_brdf_at")
-            
-            
-            #print("_render")
-            # rendering
-            rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, 
-                                                               relight_olat=self.do_relight_olat and mode != 'train', 
-                                                               relight_probes=self.do_relight_probes and mode != 'train')
+                    albedo_jitter = self._pred_albedo_at(net, xyz_jittered, features_jitter)
 
-                       
-            pred_rgb[mask] = rgb_pred
+                if True :
+                    brdf_prop = self._pred_brdf_at(net, xyz, features)
+                    if xyz_noise is None:
+                        brdf_prop_jitter = None
+                    else:
+                        brdf_prop_jitter = self._pred_brdf_at(net, xyz_jittered, features_jitter)
+                    if self.normalize_brdf_z:
+                        brdf_prop = torch.nn.functional.normalize(brdf_prop, p=2, dim=-1, eps=1e-7)
+                        if brdf_prop_jitter is not None:
+                            brdf_prop_jitter = torch.nn.functional.normalize(brdf_prop_jitter, p=2, dim=-1, eps=1e-7)
+                    brdf = self._eval_brdf_at(surf2light, surf2cam, normal_pred, albedo, brdf_prop) # NxLx3
+                else:
+                    brdf_prop = torch.zeros_like(albedo)
+                    brdf_prop_jitter = torch.zeros_like(albedo)
+                    brdf = albedo[ :, None, :].repeat(1, self.NLights, 1) / np.pi # NxLx3 Default Lambertian BRDF
+                    ##print("eval_brdf_at")
+            
+            
+                #print("_render")
+                # rendering
+                rgb_pred, rgb_olat, rgb_probes, hdr = self._render(lvis_pred, brdf, surf2light, normal_pred, 
+                                                                relight_olat=self.do_relight_olat and mode != 'train', 
+                                                                relight_probes=self.do_relight_probes and mode != 'train')
+
+            
+            
             pred_normal[mask] = normal_pred
             pred_lvis[mask] = lvis_pred
-            pred_albedo[mask] = albedo
-            pred_brdf[mask] = brdf_prop
+            if not self.predict_normals_lvis_only:
+                pred_rgb[mask] = rgb_pred
+                pred_albedo[mask] = albedo
+                pred_brdf[mask] = brdf_prop
             
             if xyz_noise is not None:
                 pred_normal_jitter[mask] = normal_jitter
                 pred_lvis_jitter[mask] = lvis_jitter
-                pred_albedo_jitter[mask] = albedo_jitter
-                pred_brdf_jitter[mask] = brdf_prop_jitter
+                if not self.predict_normals_lvis_only:
+                    pred_albedo_jitter[mask] = albedo_jitter
+                    pred_brdf_jitter[mask] = brdf_prop_jitter
             
-            
-            #if rgb_olat is not None:
-            #    pred['rgb_olat'] = rgb_olat
-            if rgb_probes is not None:
-                pred_rgb_probes[mask] = rgb_probes 
-            if rgb_olat is not None:
-                pred_olat[mask] = rgb_olat
+            if not self.predict_normals_lvis_only:
+                #if rgb_olat is not None:
+                #    pred['rgb_olat'] = rgb_olat
+                if rgb_probes is not None:
+                    pred_rgb_probes[mask] = rgb_probes 
+                if rgb_olat is not None:
+                    pred_olat[mask] = rgb_olat
         
+            
         
         if mode != 'train':
             light = self.light()
-            print("light.shape: ", light.shape)
-            print("light min, max, mean: ", light.min(), light.max(), light.mean())
-            plt.imshow(light.detach().cpu().numpy())
-            plt.show()
+            #print("light.shape: ", light.shape)
+            #print("light min, max, mean: ", light.min(), light.max(), light.mean())
+            #plt.imshow(light.detach().cpu().numpy())
+            #plt.show()
             
             
             ret_mask = ret_mask.unsqueeze(-1)
@@ -626,6 +645,44 @@ class RelightModule(nn.Module):
             return {'rgb_map': pred_rgb[None,:], 'normal_map': pred_normal[None,:], 'lvis_map': pred_lvis[None,:], 
                     'albedo_map': pred_albedo[None,:], 'brdf_map': pred_brdf[None,:], 
                     'rgb_probes': pred_rgb_probes[None,:], 'olat': pred_olat[None,:]}
+        
+        
+        
+        if self.predict_normals_lvis_only:
+            
+            
+            pred_normal = pred_normal[ret_mask]
+            pred_lvis = pred_lvis[ret_mask]
+            if xyz_noise is not None:
+                pred_normal_jitter = pred_normal_jitter[ret_mask]
+                pred_lvis_jitter = pred_lvis_jitter[ret_mask]
+                
+            normal = normal_gt[ret_mask]
+            lvis = lvis_hit_map[ret_mask]
+            
+            ####################################
+            #coords = batch['coord']
+            #import matplotlib.pyplot as plt
+            #blank = np.zeros((1080,1920)) 
+            #coords = coords[ret_mask].detach().cpu().numpy()
+            #
+            #
+            #values = (normal - pred_normal) 
+            #values = values.detach().cpu().numpy()
+            #print("values: ", values.shape)
+            #values = np.linalg.norm(values, axis=-1)**2
+            #
+            #blank[coords[:,0],coords[:,1]] = values
+            #
+            #plt.imshow(blank)
+            #plt.show()
+            ####################################
+            
+            pred = {'normal': pred_normal, 'lvis': pred_lvis}
+            gt = {'normal': normal, 'lvis': lvis, 'alpha': alpha_map[ret_mask]}
+            loss_kwargs = {'mode': mode, 'normal_jitter': pred_normal_jitter, 'lvis_jitter': pred_lvis_jitter}
+            return pred, gt, loss_kwargs
+            
         
         
         pred_rgb = pred_rgb[ret_mask]
@@ -752,6 +809,38 @@ class RelightModule(nn.Module):
         return rgb, rgb_olat, rgb_probes, hdr # Nx3
     
     def compute_loss(self, pred, gt, **kwargs):
+        if self.predict_normals_lvis_only:
+            
+            normal_pred = pred['normal']
+            lvis_pred = pred['lvis']
+            normal_gt = gt['normal']
+            lvis_gt = gt['lvis']
+            normal_jitter = kwargs.pop('normal_jitter')
+            lvis_jitter = kwargs.pop('lvis_jitter')
+            
+            cos_sim_loss = lambda x, y: torch.mean(1 - F.cosine_similarity(x, y, dim=-1))
+            mse = nn.MSELoss()
+            smooth_loss = nn.L1Loss() if self.smooth_use_l1 else nn.MSELoss()
+            loss = 0
+            
+            normal_loss = cos_sim_loss(normal_gt, normal_pred) * self.normal_loss_weight
+            loss += normal_loss 
+            
+            lvis_loss = mse(lvis_gt, lvis_pred) * self.lvis_loss_weight
+            loss += lvis_loss
+            
+            normal_smooth_loss = smooth_loss(normal_pred, normal_jitter) * self.normal_smooth_weight
+            loss += normal_smooth_loss
+            
+            lvis_smooth_loss = smooth_loss(lvis_pred, lvis_jitter) * self.lvis_smooth_weight
+            loss += lvis_smooth_loss
+            
+            return loss, normal_loss, lvis_loss, normal_smooth_loss, lvis_smooth_loss, 0, 0, 0, 0
+            
+            
+        
+            
+        
         normal_loss_weight = self.normal_loss_weight
         lvis_loss_weight = self.lvis_loss_weight
         smooth_use_l1 = self.smooth_use_l1

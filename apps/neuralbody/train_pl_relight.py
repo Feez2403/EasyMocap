@@ -24,13 +24,16 @@ from easymocap.neuralbody_relight.dataset.mvbase import BaseDataset
 #rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 #resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
+#trained_checkpoint = join("neuralbody","wildtrack_remapped","model","last.ckpt")
+trained_checkpoint = join("neuralbody","soccer1_6_125","model","last.ckpt")
+
 class plwrapper(pl.LightningModule):
     def __init__(self, cfg, mode='train'):
         super().__init__()
         # load model
         self.cfg = cfg
         self.network = ComposedModel(**cfg.network_args)
-        load_ckpt(self.network, join("neuralbody","wildtrack_remapped","model","last.ckpt"))
+        load_ckpt(self.network, trained_checkpoint)
         trainer_args = dict(cfg.trainer_args)
         trainer_args['net'] = self.network
         self.train_renderer = RenderWrapper(**trainer_args)
@@ -97,14 +100,14 @@ class plwrapper(pl.LightningModule):
                                               worker_init_fn=worker_init_fn)
         return data_loader
     
-    def optimizer_step(
-        self,
-        *args,**kwargs
-    ):
-        for param in self.network.parameters():            
-            param.grad = None
-            
-        super().optimizer_step(*args, **kwargs)
+    #def optimizer_step(
+    #    self,
+    #    *args,**kwargs
+    #):
+    #    for param in self.network.parameters():            
+    #        param.grad = None
+    #        
+    #    super().optimizer_step(*args, **kwargs)
 
     def configure_optimizers(self):
         from easymocap.neuralbody.trainer.optimizer import Optimizer
@@ -119,9 +122,9 @@ class plwrapper(pl.LightningModule):
 
 def train(cfg):
     model = plwrapper(cfg)
-    if cfg.resume and os.path.exists(join("neuralbody","wildtrack_remapped","model","last.ckpt")):
+    if cfg.resume and os.path.exists(trained_checkpoint):
         print('Resume multi-neuralbody from {}'.format(join(cfg.trained_model_dir, 'last.ckpt')))
-        trained_no_relight_dir = join("neuralbody","wildtrack_remapped","model","last.ckpt")
+        trained_no_relight_dir = trained_checkpoint
         resume_trainer_from_checkpoint = join(cfg.trained_model_dir, 'last.ckpt')
         ckpt_epoch = load_ckpt(model.network, trained_no_relight_dir, model_name='network')
         

@@ -1,1 +1,0 @@
-parents: ['config/neuralbody/utils/train_base.yml', 'config/neuralbody/dataset/demo_soccer1_6.yml', 'config/neuralbody/network/comp_neuralbody+back+soccer.yml', 'config/neuralbody/utils/trainer_soccer.yml', 'config/neuralbody/utils/vis_multi.yml']

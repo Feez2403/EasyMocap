@@ -188,31 +188,25 @@ class BaseRenderer(nn.Module):
             if mask.sum() < 1:
                 # print('Skip {} [{}, {}]'.format(key, start, end))
                 continue
-            #print(f"ray_o.shape: {ray_o[mask].shape}")
-            #print(f"ray_d.shape: {ray_d[mask].shape}")
-            #print(f"near.shape: {near.shape}")
-            #print(f"far.shape: {far.shape}")
             z_vals, pts, raw_output = model.calculate_density_from_ray(
                 ray_o[mask], ray_d[mask], near, far, self.split)
             
-            #raw_output = {'occupancy': alpha,'raw_alpha': raw_alpha}
-            #print(f"z_vals.shape: {z_vals.shape}")
             raw_output['z_vals'] = z_vals[..., 0]
             
             instance_ = torch.zeros((*pts.shape[:-1], len(keys_all)), 
                         dtype=pts.dtype, device=pts.device)
             instance_[..., keys_all.index(key)] = 1.
             raw_output['instance'] = instance_
-                    
-            #density = raw_output['density']
+            
+            #outputs_solo = raw2outputs(raw_output, z_vals[..., 0], ray_d[mask], bkgd)
             if self.split == 'train' or True:
                 with torch.no_grad():
                     #for param in self.net.model(key).parameters():
                     #    if param.requires_grad:
                     #        print(f"param: {param}")
                     density = raw_output['occupancy']
-                    normal = -torch.autograd.grad(density, pts, torch.ones_like(density), retain_graph=True)[0]
-                    raw_output['normal'] = normal
+                    normal = -torch.autograd.grad(density, pts, torch.ones_like(density), retain_graph=True)[0] 
+                    raw_output['normal'] = normal 
                     #print(f"raw_output.keys: {raw_output.keys()}") # "occupancy", "raw_alpha", "density", "normal
                     #print(f"raw_output['normal'].shape: {raw_output['normal'].shape}")
                     #print(f"raw_output['density'].shape: {raw_output['density'].shape}")
@@ -282,6 +276,8 @@ class BaseRenderer(nn.Module):
         with torch.no_grad():
             ret['normal_map'] = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
             normal = ret['normal_map']
+            
+            #normal = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1)
         if self.split == 'train' :
             with torch.no_grad():
         

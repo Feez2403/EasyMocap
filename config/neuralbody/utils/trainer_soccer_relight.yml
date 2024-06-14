@@ -1,0 +1,28 @@
+parents:
+  - config/neuralbody/utils/trainer_base_relight.yml
+
+trainer_module: "easymocap.neuralbody_relight.renderer.render_wrapper.RenderWrapper"
+trainer_args:
+  renderer_args:
+    return_extra: True
+  loss:
+    rgb:
+      weight: 1.
+      module: "easymocap.neuralbody_relight.renderer.render_loss.LossRGB"
+      args:
+        norm: "l2"
+    sparse:
+      weight: 0.001
+      module: easymocap.neuralbody_relight.renderer.render_loss.LossSparseEntropy
+      args:
+        norm: "l2"
+        start: 10000
+        end: 999999
+    entropy:
+      weight: 0.01
+      module: easymocap.neuralbody_relight.renderer.render_loss.LossEntropyInstance
+      args:
+        norm: "l2"
+        start: 0
+        end: 5000
+
