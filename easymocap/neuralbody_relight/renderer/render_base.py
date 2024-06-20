@@ -79,25 +79,31 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
             -1), -1)[:, :-1]
     acc_map = torch.sum(weights, -1)
     # ATTN: here depth must /||ray_d||
-    depth_map = torch.sum(weights * z_vals, -1)/(1e-10 + acc_map)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
-    
     # OPTION 1 : weighted average of the depth from the raw output 
-    #depth_raw = torch.sum(weights * z_vals, -1)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
-    depth_raw = depth_map
+    depth_raw = torch.sum(weights * z_vals, -1)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
+    depth_map = torch.sum(weights * z_vals, -1)/(1e-10 + acc_map)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
     
     # OPTION 2 : first value of z_vals above the threshold
     #threshold = 0.5
     #msk = torch.gt(alpha, threshold)
+    ##first value of z_vals above the threshold
+    #indices = torch.argmax(msk.to(torch.long), dim=-1) # argmax gives the first True value
     #
-    #indices = torch.argmax(msk, dim=-1)
-    #depth_raw = torch.where(msk.any(dim=-1), z_vals[torch.arange(z_vals.shape[0]), indices], torch.zeros_like(z_vals[:, 0])) / torch.norm(rays_d, dim=-1).squeeze()
+    #depth_map = z_vals.gather(-1, indices.unsqueeze(-1)).squeeze(-1)
+    #
+    #depth_map = depth_map/ (1e-10 + acc_map)/ torch.norm(rays_d, dim=-1).squeeze()
+    #
+    #instances = outputs['instance']
+    #print(f"instances.shape: {instances.shape}")
+    #inst_map = instances.gather(-1, indices.unsqueeze(-1)).squeeze(-1)
     
-     
+    depth_raw = depth_map
     
     results = {
         'acc_map': acc_map, # [N_rays]
         'depth_map': depth_map, # [N_rays]
         'depth_raw': depth_raw, # [N_rays]
+        #'instance_map': inst_map, # [N_rays]
     }
     for key, val in outputs.items():
         if key == 'occupancy':
@@ -129,7 +135,13 @@ class BaseRenderer(nn.Module):
     def compose(self, retlist, mask=None, bkgd=None):
         res = {}
         for key in retlist[0].keys():
+            
             val = torch.cat([r[key] for r in retlist])
+            #if key == 'surf':
+            #    print(f"SURF")
+            #    print(f"val.shape: {val.shape}")
+            #    print(f"requires_grad: {val.requires_grad}")
+            #    print(f"requires_grad: {[r[key].requires_grad for r in retlist]}")
             if mask is not None and val.shape[0] != mask.shape[0]:
                 val_ = torch.zeros((mask.shape[0], *val.shape[1:]), device=val.device, dtype=val.dtype)
                 if key == 'rgb_map': # consider the background
@@ -205,6 +217,8 @@ class BaseRenderer(nn.Module):
                     #    if param.requires_grad:
                     #        print(f"param: {param}")
                     density = raw_output['occupancy']
+                    #print ("pts_grad: ", pts.requires_grad)
+                    #print ("density_grad: ", density.requires_grad)
                     normal = -torch.autograd.grad(density, pts, torch.ones_like(density), retain_graph=True)[0] 
                     raw_output['normal'] = normal 
                     #print(f"raw_output.keys: {raw_output.keys()}") # "occupancy", "raw_alpha", "density", "normal
@@ -271,13 +285,47 @@ class BaseRenderer(nn.Module):
         #print (f"depth.shape: {depth.shape}")
         #print (f"ray_d.shape: {ray_d.shape}")
         #print (f"ray_o.shape: {ray_o.shape}")   
+        #print ("depth_raw_shape: ", depth.shape)
+        #print ("ray_o_shape: ", ray_o.shape)
+        #print ("ray_d_shape: ", ray_d.shape)
         surf = ray_o + ray_d * depth.reshape(-1,1,1) # (N_rays,1, 3) xyz of the surface
-        
+        #print (f"surf.shape: {surf.shape}")
+        #print (surf.requires_grad)
         with torch.no_grad():
             ret['normal_map'] = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1) # (N_rays, 3) normal of the surface
             normal = ret['normal_map']
             
             #normal = torch.nn.functional.normalize(ret['normal_map'], p=2, dim=-1)
+            
+           
+        instance_map = ret["instance_map"]
+        argmax_instances = torch.argmax(instance_map, dim=-1)
+        alpha_map = ret["acc_map"]
+        
+        
+        for i, key in enumerate(object_keys):
+            if key in ["ground", "background"]:
+                continue
+            model__ = self.net.model(key)
+            mask_surf = (argmax_instances == i) & (alpha_map > 0.5)
+            if mask_surf.sum() == 0:
+                continue
+            #print("key", key)
+            #print (f"mask_surf.shape: {mask_surf.shape}")
+            #print (f"mask_surf.requires_grad: {mask_surf.requires_grad}")    
+            surf_layer = surf.squeeze(-2)[mask_surf].unsqueeze(0)
+            #print (f"surf_layer.shape: {surf_layer.shape}")
+            #print (f"surf_layer.requires_grad: {surf_layer.requires_grad}")
+            normal_pred = model__.gradient(surf_layer)
+            if normal_pred is None:
+                continue
+            normal_pred = -torch.nn.functional.normalize(normal_pred.detach(), p=2, dim=-1, eps=1e-7)
+            normal[mask_surf] = normal_pred
+            
+            ret['normal_map'][mask_surf] = normal_pred
+                #surf.reshape(n_pixel, 3)
+    
+        
         if self.split == 'train' :
             with torch.no_grad():
         
@@ -451,13 +499,13 @@ class BaseRenderer(nn.Module):
         retlist = []
         for bn in range(0, viewdir.shape[0], self.chunk):
             
-            print(f"bn: {bn} / {viewdir.shape[0]}")
+            #print(f"bn: {bn} / {viewdir.shape[0]}")
             start, end = bn, min(bn + self.chunk, viewdir.shape[0])
             ret = self.batch_forward(batch, viewdir, start, end, bkgd)
             if ret is not None:
                 if self.split != 'train':
                     for key in ret.keys():
-                        if isinstance(ret[key], torch.Tensor):
+                        if isinstance(ret[key], torch.Tensor) :
                             ret[key] = ret[key].detach()
                         
                 retlist.append(ret)
@@ -466,7 +514,7 @@ class BaseRenderer(nn.Module):
         #print(f"rgb.shape: {rgb.shape}")
             
         res = self.compose(retlist)
-        
+        #print ("res_surf_grad: ", res["surf"].requires_grad)
         #if batch["meta"]["step"] % 10 == 0:
         #    coords = batch['coord']
 #

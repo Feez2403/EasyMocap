@@ -16,3 +16,7 @@ python apps/neuralbody/demo.py --mode wildtrack data/wildtrack_remaped --gpus 0,
 # remap + relight
 python apps/neuralbody/demo_relight.py --mode wildtrack_relight data/wildtrack_remaped --gpus 0,
 python apps/neuralbody/demo_relight.py --mode wildtrack_relight data/wildtrack_remaped --gpus 0, --demo
+
+
+
+python apps/neuralbody/demo_relight.py --mode soccer1_6_relight data/soccer1_6 --gpus 0, --demo

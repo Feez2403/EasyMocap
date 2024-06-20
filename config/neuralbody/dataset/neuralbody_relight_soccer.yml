@@ -18,7 +18,7 @@ data_share_args:
       args:
         pid: -1
         use_param_foreachview: True
-        rate_body: 0.95
+        rate_body: 1
         reader:
           _no_merge_: True
           smpl:
@@ -34,14 +34,14 @@ data_share_args:
             undis: False # don't undis as it is rendered by undistorted
     background:
       model: cylinder
-      rate: 0.05
+      rate: 0.0
       args:
         center: [0., 0., 0.]
         radius: [5., 20.]
         zranges: [0.01, 3.]
     ground:
       model: plane
-      rate: 0.05
+      rate: 0.0
       args:
         center: [0., 0., 0.]
         radius: 5.

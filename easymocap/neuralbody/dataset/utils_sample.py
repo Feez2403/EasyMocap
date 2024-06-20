@@ -17,7 +17,7 @@ def get_rays(H, W, K, R, T):
     # calculate the ray direction
     rays_d = pixel_world - rays_o[None, None]
     # ATTN: dont't normalize here
-    # rays_d = rays_d / np.linalg.norm(rays_d, axis=-1, keepdims=True)
+    rays_d = rays_d / np.linalg.norm(rays_d, axis=-1, keepdims=True)
     rays_o = np.broadcast_to(rays_o, rays_d.shape)
     rays_o = rays_o.astype(np.float32)
     rays_d = rays_d.astype(np.float32)

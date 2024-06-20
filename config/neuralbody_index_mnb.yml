@@ -398,6 +398,6 @@ wildtrack_relight:
       ranges: [0, 300, 1]
   opts:
     - data_share_args.object_args.allhuman.pids
-    - [0, 1, 2, 3, 7, 9, 10]
+    - [0, 1, 2, 3, 7]
     - network_args.models.allhuman.pids
-    - [0, 1, 2, 3, 7, 9, 10]
+    - [0, 1, 2, 3, 7]

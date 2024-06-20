@@ -17,7 +17,7 @@ def get_rays(H, W, K, R, T):
     # calculate the ray direction
     rays_d = pixel_world - rays_o[None, None]
     # ATTN: dont't normalize here
-    # rays_d = rays_d / np.linalg.norm(rays_d, axis=-1, keepdims=True)
+    rays_d = rays_d / np.linalg.norm(rays_d, axis=-1, keepdims=True)
     rays_o = np.broadcast_to(rays_o, rays_d.shape)
     rays_o = rays_o.astype(np.float32)
     rays_d = rays_d.astype(np.float32)
@@ -579,6 +579,7 @@ def create_cameras_mean(cameras, camera_args):
     print('[sample] camera centers: ', center[0].T[0])
     print('[sample] camera radius: ', radius)
     print('[sample] camera start theta: ', theta0)
+    print('[sample] camera angle with ground: ', np.arccos(zmean), np.rad2deg(np.arccos(zmean)))
     Tnew = -np.einsum('bmn,bnp->bmp', Rnew, loc)
     K = Kold.mean(axis=0, keepdims=True).repeat(Tnew.shape[0], 0)
     return K, Rnew, Tnew

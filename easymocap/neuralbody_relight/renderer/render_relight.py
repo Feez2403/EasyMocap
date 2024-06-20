@@ -72,12 +72,12 @@ class RelightModule(nn.Module):
         
         self.predict_normals = True
         
-        self.predict_normals_lvis_only = True
+        self.predict_normals_lvis_only = False
         
         if self.predict_normals_lvis_only:
             assert self.predict_normals
         
-        self.train_relight= True
+        #self.train_relight= True
         
         self.net_dict = nn.ModuleDict()
         self.embedder = self._init_embedder()
@@ -417,7 +417,7 @@ class RelightModule(nn.Module):
         depth_map       = result['depth_map']    # (1, nray)
         density_map     = result['density_map']  # (1, nray, 1)
         instance_map    = result['instance_map'] # (1, nray, nkeys)
-        surf_map             = result['surf']         # (1, nray, 3)
+        surf_map             = result['surf']         # (nray, 3)
         keys            = result['keys'] # list of keys
         latent_features = result['latent_features'] # dict of features per person
         #gt
@@ -497,7 +497,6 @@ class RelightModule(nn.Module):
             
             # Nx3 to 1xNx3
             xyz = surf_map[mask].reshape(1, -1, 3)
-            
             rayo = ray_o[mask]#.reshape(1, -1, 3)
             
             ret_mask[mask] = True
@@ -511,9 +510,9 @@ class RelightModule(nn.Module):
             
             # get the feature volume from the pretrained model
             with torch.no_grad():
-                nerf_net = self.net.models[key]
-                features, valid_mask = nerf_net.get_feature(xyz, sparse_features)
-                
+                nerf_net = self.net.model(key) 
+                features , valid_mask = nerf_net.get_feature(xyz, sparse_features)
+                #print('valid_mask: ', valid_mask.sum()/valid_mask.numel())
                 if xyz_noise is not None:
                     features_jitter, valid_mask_jitter  = nerf_net.get_feature(xyz_jittered, sparse_features)
                     
@@ -539,6 +538,7 @@ class RelightModule(nn.Module):
                 if normal_jitter is not None:
                     normal_jitter = torch.nn.functional.normalize(normal_jitter, p=2, dim=-1, eps=1e-7)
             else:
+                
                 normal_pred = normal_gt[mask]
                 normal_jitter = normal_pred
 
@@ -620,6 +620,42 @@ class RelightModule(nn.Module):
                 if rgb_olat is not None:
                     pred_olat[mask] = rgb_olat
         
+        
+        if self.predict_normals_lvis_only:
+                    
+            pred_normal = pred_normal[ret_mask]
+            pred_lvis = pred_lvis[ret_mask]
+            if xyz_noise is not None:
+                pred_normal_jitter = pred_normal_jitter[ret_mask]
+                pred_lvis_jitter = pred_lvis_jitter[ret_mask]
+                
+            normal = normal_gt[ret_mask]
+            lvis = lvis_hit_map[ret_mask]
+            
+            #####################################
+            #coords = batch['coord']
+            #import matplotlib.pyplot as plt
+            #blank = np.zeros((1080,1920,3)) 
+            #coords = coords[ret_mask].detach().cpu().numpy()
+            #
+            #
+            #values = (normal - pred_normal) 
+            #values = values.detach().cpu().numpy()
+            #print("values: ", values.shape)
+            #values = np.linalg.norm(values, axis=-1)**2
+            ##map 0 to green, 1 to red
+            #values = values / values.max()
+            #values = np.stack([values, 1-values, np.zeros_like(values)], axis=-1)
+            #blank[coords[:,0],coords[:,1]] = values
+            #
+            #plt.imshow(blank)
+            #plt.show()
+            #####################################
+            
+            pred = {'normal': pred_normal, 'lvis': pred_lvis}
+            gt = {'normal': normal, 'lvis': lvis, 'alpha': alpha_map[ret_mask]}
+            loss_kwargs = {'mode': mode, 'normal_jitter': pred_normal_jitter, 'lvis_jitter': pred_lvis_jitter}
+            return pred, gt, loss_kwargs
             
         
         if mode != 'train':
@@ -648,40 +684,7 @@ class RelightModule(nn.Module):
         
         
         
-        if self.predict_normals_lvis_only:
-            
-            
-            pred_normal = pred_normal[ret_mask]
-            pred_lvis = pred_lvis[ret_mask]
-            if xyz_noise is not None:
-                pred_normal_jitter = pred_normal_jitter[ret_mask]
-                pred_lvis_jitter = pred_lvis_jitter[ret_mask]
-                
-            normal = normal_gt[ret_mask]
-            lvis = lvis_hit_map[ret_mask]
-            
-            ####################################
-            #coords = batch['coord']
-            #import matplotlib.pyplot as plt
-            #blank = np.zeros((1080,1920)) 
-            #coords = coords[ret_mask].detach().cpu().numpy()
-            #
-            #
-            #values = (normal - pred_normal) 
-            #values = values.detach().cpu().numpy()
-            #print("values: ", values.shape)
-            #values = np.linalg.norm(values, axis=-1)**2
-            #
-            #blank[coords[:,0],coords[:,1]] = values
-            #
-            #plt.imshow(blank)
-            #plt.show()
-            ####################################
-            
-            pred = {'normal': pred_normal, 'lvis': pred_lvis}
-            gt = {'normal': normal, 'lvis': lvis, 'alpha': alpha_map[ret_mask]}
-            loss_kwargs = {'mode': mode, 'normal_jitter': pred_normal_jitter, 'lvis_jitter': pred_lvis_jitter}
-            return pred, gt, loss_kwargs
+        
             
         
         
@@ -803,7 +806,9 @@ class RelightModule(nn.Module):
         if relight_probes:
             rgb_probes = []
             for _, light in self.novel_probes.items():
-                rgb_relit = integrate(0.25*light + 0.1*self.light())
+                rgb_relit = integrate(0.35*light)
+                #rgb_relit = integrate(0.25*light + 0.1*self.light())
+
                 rgb_probes.append(rgb_relit)
             rgb_probes = torch.cat([x[:, None, :] for x in rgb_probes], dim=1)
         return rgb, rgb_olat, rgb_probes, hdr # Nx3

@@ -63,6 +63,7 @@ class plwrapper(pl.LightningModule):
         # in lightning, forward defines the prediction/inference actions
         self.network.train()
         self.test_renderer.train()
+        self.test_renderer.relight.net.train()
         torch.set_grad_enabled(True)
         batch['step'] = self.trainer.global_step
         batch['meta']['step'] = self.trainer.global_step

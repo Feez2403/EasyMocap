@@ -260,9 +260,13 @@ class Network(Nerf):
         valid = valid.all(dim=-1)
         if valid.sum() == 0:
             # no points inside the bbox
-            #print('self.current : No points inside the bbox')  
+            print('self.current : No points inside the bbox')
+            print(ppts[:10,:])
+            print("min", sparse_feature['sp_input']['min_xyz'])
+            print("max", sparse_feature['sp_input']['max_xyz']) 
+            print("valid.sum() == 0")
             outputs = {
-                'occupancy': torch.zeros((*wpts.shape[:-1], 1), device=wpts.device, dtype=wpts.dtype)
+                'occupancy': torch.zeros((*wpts.shape[:-1], 1), device=wpts.device, dtype=wpts.dtype, requires_grad=wpts.requires_grad),
             }
             outputs['density'] = outputs['occupancy']
             return outputs
@@ -275,15 +279,23 @@ class Network(Nerf):
         outputs = super().calculate_density(ppts_inlier, 
             extra_density=xyzc_features, latents={'time': sparse_feature['latent_time'][0]})
         outputs_all = {}
+        
         for key, val in outputs.items():
+            #print (key, val.shape, val.requires_grad)
             padding = torch.zeros((wpts_flat.shape[0], val.shape[-1]), device=val.device, dtype=val.dtype)
             padding[valid] = val
+            #print (key, "pad", padding.shape, padding.requires_grad)
             outputs_all[key] = padding.view(*wpts.shape[:-1], val.shape[-1])
+            #print (key, "out_all", outputs_all[key].shape, outputs_all[key].requires_grad)
         return outputs_all
     
     def gradient(self, wpts, **kwargs):
         outputs = self.calculate_density(wpts, **kwargs)
-        return torch.autograd.grad(outputs['occupancy'], wpts, create_graph=True)[0]
+        #print ("occupancy", outputs['occupancy'].shape)
+        #print (outputs['occupancy'].requires_grad)
+        with torch.no_grad():
+            return torch.autograd.grad(outputs['occupancy'], wpts, torch.ones_like(outputs['occupancy']), create_graph=True, allow_unused=True)[0]
+            
         
         
     
