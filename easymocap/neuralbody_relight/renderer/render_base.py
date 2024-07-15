@@ -80,7 +80,7 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     acc_map = torch.sum(weights, -1)
     # ATTN: here depth must /||ray_d||
     # OPTION 1 : weighted average of the depth from the raw output 
-    depth_raw = torch.sum(weights * z_vals, -1)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
+    #depth_raw = torch.sum(weights * z_vals, -1)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
     depth_map = torch.sum(weights * z_vals, -1)/(1e-10 + acc_map)/torch.norm(rays_d, dim=-1).squeeze() # [N_rays]
     
     # OPTION 2 : first value of z_vals above the threshold

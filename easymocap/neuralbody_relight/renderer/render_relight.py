@@ -51,20 +51,23 @@ class RelightModule(nn.Module):
         self.learned_brdf_scale= 1.
         self.light_init_max= 1
         self.light_achro_weight= 0.
-        self.achro_light= True
         self.linear2srgb= True
         self.normalize_z= False
         self.fresnel_f0= 0.04
+        
+        self.achro_light= True
         self.fix_light= True
-        # Use Gaussian light
+        # Use Gaussian light insted of parameter grid
         self.gaussian_light= True
         
         self.lvis_far= 0.5
         self.lvis_near= 0.0
         self.perturb_light= 0.0
+        
+        #######################
         #self.albedo_sparsity= 0.0005
         self.albedo_sparsity= 0.0005
-        
+        ######################
         self.z_dim = 1
         self.shape_mode = "scratch"
         self.normalize_brdf_z = False
@@ -77,6 +80,7 @@ class RelightModule(nn.Module):
         if self.predict_normals_lvis_only:
             assert self.predict_normals
         
+        self.diffuse_bsdf_only = False
         #self.train_relight= True
         
         self.net_dict = nn.ModuleDict()
@@ -131,7 +135,8 @@ class RelightModule(nn.Module):
         olat_inten = self.olat_inten
         ambient_inten = self.ambient_inten
         ambient = ambient_inten*torch.ones(light_shape, device=torch.device('cuda:0'))
-        olats = [ 10,  22,  37,  63,  64,  84,  99, 121] # light index, randomly selected
+        #olats = [ 10,  22,  37,  63,  64,  84,  99, 121] # light index, randomly selected
+        olats = list(range(32,64))
         idx = -1
         for i in range(self.light_res[0]):
             for j in range(self.light_res[1]):
@@ -139,6 +144,7 @@ class RelightModule(nn.Module):
                 if idx in olats:
                     one_hot = one_hot_img(*ambient.shape, i, j)
                     envmap = olat_inten * one_hot + ambient
+                    cv2.imwrite('olat/%04d-%04d.png' % (i, j), 10*envmap.cpu().numpy().astype(np.float16))
                     #plt.imshow(arr)
                     #plt.show()
                     novel_olat['%04d-%04d' % (i, j)] = envmap
@@ -156,8 +162,9 @@ class RelightModule(nn.Module):
                 #plt.show()
                 tensor = torch.from_numpy(arr).cuda()
                 novel_probes[name] = tensor
+                
         self.novel_probes = novel_probes
-    
+        
     def _init_embedder(self):
         kwargs = {
             'input_dims': 3,
@@ -404,11 +411,13 @@ class RelightModule(nn.Module):
             if self.achro_light:
                 return torch.clip(self._light.repeat(1, 1, 3), min=0., max=1e6) + light_noise
             else:
+                li = torch.clip(self._light, min=0., max=1e6) + light_noise
+                #plt.imshow(li.detach().cpu().numpy()/3)
+                #plt.show()
                 return torch.clip(self._light, min=0., max=1e6) + light_noise
 
 
     def forward(self, batch, result, mode='train', relight_olat=True, relight_probes=True, albedo_scale=None, albedo_override=None, brdf_z_override=None):
-        
         xyz_jitter_std = self.xyz_jitter_std
         #id_, hw, rayo, _, rgb, alpha, xyz, normal, lvis, raw_batch = batch
         #print ("batch: ", batch.keys())
@@ -545,7 +554,7 @@ class RelightModule(nn.Module):
             lvis_pred = torch.zeros((xyz.shape[1], self.NLights), device=torch.device('cuda:0'))
             
             # For demo, we chunk to avoid Out of Memory error
-            chunk_size = 16384
+            chunk_size = 8192
             for chunk in range(0, xyz.shape[1], chunk_size):
                 chunk_end = min(xyz.shape[1], chunk + chunk_size)                
                 
@@ -572,7 +581,7 @@ class RelightModule(nn.Module):
                 else:
                     albedo_jitter = self._pred_albedo_at(net, xyz_jittered, features_jitter)
 
-                if True :
+                if not self.diffuse_bsdf_only:
                     brdf_prop = self._pred_brdf_at(net, xyz, features)
                     if xyz_noise is None:
                         brdf_prop_jitter = None
@@ -672,6 +681,8 @@ class RelightModule(nn.Module):
             pred_lvis = torch.where(ret_mask, pred_lvis, torch.zeros_like(pred_lvis))
             pred_albedo = torch.where(ret_mask, pred_albedo, torch.zeros_like(pred_albedo))
             pred_brdf =  torch.where(ret_mask, pred_brdf, torch.zeros_like(pred_brdf))
+            #lvis_hit_map = torch.where(ret_mask, lvis_hit_map, torch.zeros_like(lvis_hit_map))
+            
             if rgb_probes is not None:                
                 pred_rgb_probes = torch.where(ret_mask[..., None], pred_rgb_probes, torch.zeros_like(pred_rgb_probes))
             
@@ -823,12 +834,12 @@ class RelightModule(nn.Module):
             normal_jitter = kwargs.pop('normal_jitter')
             lvis_jitter = kwargs.pop('lvis_jitter')
             
-            cos_sim_loss = lambda x, y: torch.mean(1 - F.cosine_similarity(x, y, dim=-1))
+            #cos_sim_loss = lambda x, y: torch.mean(1 - F.cosine_similarity(x, y, dim=-1))
             mse = nn.MSELoss()
             smooth_loss = nn.L1Loss() if self.smooth_use_l1 else nn.MSELoss()
             loss = 0
             
-            normal_loss = cos_sim_loss(normal_gt, normal_pred) * self.normal_loss_weight
+            normal_loss = mse(normal_gt, normal_pred) * self.normal_loss_weight
             loss += normal_loss 
             
             lvis_loss = mse(lvis_gt, lvis_pred) * self.lvis_loss_weight

@@ -11,6 +11,8 @@ from termcolor import colored
 import os
 from os.path import join
 from ..dataset.utils_reader import palette
+from ..brdf.renderer import gen_light_xyz
+
 #from mesh_renderer import RasterCompose
 from PIL import Image
 
@@ -274,7 +276,9 @@ class Visualizer:
             res = np.zeros((H, W))
             print ("lvis_map", output[key].shape)
             print ("coord", coord.shape)    
-            res[coord[:, 0], coord[:, 1]] = np.mean(output[key][0], axis=-1)
+            _,areas = gen_light_xyz(8,16)
+            areas = areas.reshape(1,-1) / np.sum(areas)
+            res[coord[:, 0], coord[:, 1]] = np.sum(output[key][0] * areas, axis=-1)
             res = (np.clip(res, 0, 1.) * 255).astype(np.uint8)
             outputs[key] = res
 

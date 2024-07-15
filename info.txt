@@ -20,3 +20,31 @@ python apps/neuralbody/demo_relight.py --mode wildtrack_relight data/wildtrack_r
 
 
 python apps/neuralbody/demo_relight.py --mode soccer1_6_relight data/soccer1_6 --gpus 0, --demo
+python apps/neuralbody/demo.py --mode soccer1_6 data/soccer1_6 --gpus 0, --demo
+
+
+SOCCER 
+method: none
+H: 1080
+W: 1920
+focal: 927.8
+radius: 5
+angle_x: 17.626824
+up: z
+ranges: [0,0,300]
+center: [0.0, 0.0, 1.64313597]
+loop: True
+
+
+WILDTRACK CAM
+method: none
+H: 1080
+W: 1920
+focal: 1720
+radius: 15
+angle_x: 9.52880244056566
+up: z
+ranges: [290,290,300]
+#ranges: [90, 450, 300]
+center: [0.0, 0.0, 2.51789141]
+loop: True
